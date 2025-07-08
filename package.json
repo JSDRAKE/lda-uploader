@@ -1,0 +1,28 @@
+{
+  "name": "lda-uploader",
+  "version": "1.0.0-beta",
+  "displayName": "LDA Uploader",
+  "description": "Aplicación para subir automáticamente QSOs a LdA",
+  "author": "JSDRAKE - LU9WT",
+  "homepage": "https://www.jsdrake.com.ar",
+  "license": "MIT",
+  "email": "lu9wt@jsdrake.com.ar",
+  "main": "index.js",
+  "scripts": { "start": "electron .",
+  "build": "electron-builder",
+  "pack": "electron-builder --dir",
+  "dist": "electron-builder",
+  "postinstall": "electron-builder install-app-deps"
+  },
+  "keywords": [
+    "hamradio",
+    "lda",
+    "qso",
+    "log"
+  ],
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12",
+    "electron-tray-window": "^1.2.7"
+  }
+}
