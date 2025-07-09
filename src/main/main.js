@@ -40,6 +40,7 @@ function parseADIF(adifString) {
 let mainWindow;
 let tray = null;
 let udpServer = null;
+let appConfig = {}; // Add module-level appConfig
 
 // Variable para controlar el cierre de la aplicación
 app.isQuitting = false;
@@ -77,62 +78,45 @@ function sendLog(message) {
 
 // Crear ventana principal
 function createWindow() {
-    // Obtener las dimensiones de la pantalla primaria
-    const { screen } = require('electron');
-    const primaryDisplay = screen.getPrimaryDisplay();
-    const { width, height } = primaryDisplay.workAreaSize;
+    // Cargar configuración
+    const config = require('./config').getAll();
     
-    // Configurar opciones de la ventana
-    const windowOptions = {
-        width: 800,
-        height: 600,
-        x: Math.max(0, Math.floor((width - 800) / 2)),
-        y: Math.max(0, Math.floor((height - 600) / 2)),
+    // Crear la ventana del navegador
+    mainWindow = new BrowserWindow({
+        width: config.windowBounds?.width || 800,
+        height: config.windowBounds?.height || 600,
+        x: config.windowBounds?.x,
+        y: config.windowBounds?.y,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            preload: path.join(__dirname, 'preload.js'),
-            webSecurity: true,
-            allowRunningInsecureContent: false
+            preload: path.join(__dirname, 'preload.js')
         },
-        show: true,
-        title: 'LdA Uploader',
-        icon: path.join(__dirname, '..', 'assets', 'icon.png'),
-        frame: true,
-        autoHideMenuBar: false
-    };
-    
-    // No mostrar las opciones de la ventana a menos que sea necesario para depuración
-    mainWindow = new BrowserWindow(windowOptions);
-
-    // Cargar el archivo HTML
-    const indexPath = path.join(__dirname, '..', '..', 'index.html');
-    
-    mainWindow.loadFile(indexPath).catch(err => {
-        console.error('Error al cargar el archivo HTML:', err);
+        show: !config.startInTray, // No mostrar la ventana si debe iniciar en la bandeja
+        icon: path.join(__dirname, '../assets/icons/icon.png')
     });
     
-    // Forzar la visibilidad de la ventana
-    mainWindow.on('ready-to-show', () => {
+    // Cargar el archivo index.html de la aplicación
+    mainWindow.loadFile(path.join(__dirname, '../../index.html'));
+    
+    // Configurar el estado inicial de la ventana
+    if (config.startInTray) {
+        console.log('La ventana está configurada para iniciar en la bandeja');
+        mainWindow.hide();
+    } else if (config.startMinimized) {
+        console.log('La ventana está configurada para iniciar minimizada');
+        mainWindow.minimize();
+        mainWindow.show(); // Mostrar antes de minimizar para asegurar la visibilidad
+    } else {
+        console.log('Mostrando ventana principal');
         mainWindow.show();
-        mainWindow.focus();
-        
-        // Forzar visibilidad máxima
-        mainWindow.setAlwaysOnTop(true, 'screen-saver');
-        mainWindow.center();
-        mainWindow.setVisibleOnAllWorkspaces(true);
-        mainWindow.moveTop();
-        
-        // No mostrar información redundante de la ventana
-            
-            if (!mainWindow.isVisible()) {
-                console.log('La ventana sigue sin ser visible, intentando abrir las herramientas de desarrollo...');
-                mainWindow.webContents.openDevTools();
-            }
-    });
-
-    // Configurar el ícono de la bandeja en segundo plano
-    setupTrayIcon();
+    }
+    
+    // Solo abrir herramientas de desarrollo si estamos en desarrollo y la ventana no está minimizada
+    if (process.env.NODE_ENV === 'development' && !config.startInTray) {
+        console.log('Modo desarrollo: abriendo herramientas de desarrollo...');
+        mainWindow.webContents.openDevTools({ mode: 'detach' });
+    }
 }
 
 // Configurar el ícono de la bandeja
@@ -177,6 +161,11 @@ function setupTrayIcon() {
                         } else {
                             mainWindow.show();
                             mainWindow.focus();
+                            
+                            // Traer la ventana al frente si está minimizada
+                            if (mainWindow.isMinimized()) {
+                                mainWindow.restore();
+                            }
                         }
                     } 
                 },
@@ -192,13 +181,18 @@ function setupTrayIcon() {
             tray.setToolTip('LdA Uploader');
             tray.setContextMenu(contextMenu);
             
-            // Mostrar/ocultar la ventana al hacer clic en el ícono
-            tray.on('click', () => {
+            // Mostrar/ocultar la ventana al hacer doble clic en el ícono
+            tray.on('double-click', () => {
                 if (mainWindow.isVisible()) {
                     mainWindow.hide();
                 } else {
                     mainWindow.show();
                     mainWindow.focus();
+                    
+                    // Traer la ventana al frente si está minimizada
+                    if (mainWindow.isMinimized()) {
+                        mainWindow.restore();
+                    }
                 }
             });
             
@@ -314,15 +308,25 @@ function startUDPServer() {
 
 // Inicializar configuración
 function initializeConfig() {
-    let appConfig = config.getAll();
+    // Update the module-level appConfig
+    appConfig = config.getAll();
     
     // Si no hay configuración, crear valores por defecto
     if (!config.has('username') || !config.has('callsign')) {
-        config.set('username', '');
-        config.set('password', '');
-        config.set('callsign', '');
-        config.set('windowBounds', { width: 800, height: 600 });
-        config.set('lastState', {});
+        const defaultConfig = {
+            username: '',
+            password: '',
+            callsign: '',
+            windowBounds: { width: 800, height: 600 },
+            lastState: {}
+        };
+        
+        // Set default values
+        Object.entries(defaultConfig).forEach(([key, value]) => {
+            config.set(key, value);
+            appConfig[key] = value;
+        });
+        
         config.save();
     }
     
@@ -332,16 +336,38 @@ function initializeConfig() {
 // Manejadores de eventos para la configuración
 ipcMain.handle('load-config', async () => {
     console.log('Solicitada carga de configuración');
-    return config.getSafeConfig();
+    const loadedConfig = config.getSafeConfig();
+    // Update module-level appConfig when config is loaded
+    appConfig = { ...appConfig, ...loadedConfig };
+    return loadedConfig;
 });
+
+// Variable para controlar si ya hay un guardado en proceso
+let isSavingConfig = false;
 
 ipcMain.handle('save-config', async (event, newConfig) => {
     console.log('=== INICIO save-config ===');
-    console.log('Nueva configuración recibida:', newConfig);
+    
+    // Si ya hay un guardado en proceso, lo ignoramos
+    if (isSavingConfig) {
+        console.log('Ya hay un guardado en proceso, ignorando...');
+        return { success: false, error: 'Ya hay un guardado en proceso' };
+    }
+    
+    // Update module-level appConfig when config is saved
+    appConfig = { ...appConfig, ...newConfig };
+    
+    // Marcar que hay un guardado en proceso
+    isSavingConfig = true;
     
     try {
+        console.log('Nueva configuración recibida:', 
+            JSON.stringify({
+                ...newConfig,
+                password: newConfig.password ? '********' : undefined
+            }, null, 2));
+            
         // Validar configuración
-        console.log('Validando configuración...');
         if (!newConfig.username) {
             throw new Error('El nombre de usuario es obligatorio');
         }
@@ -351,31 +377,45 @@ ipcMain.handle('save-config', async (event, newConfig) => {
 
         // Obtener configuración actual
         const currentConfig = config.getAll();
+        
+        // Verificar si hay cambios reales
+        const hasChanges = Object.keys(newConfig).some(key => {
+            return JSON.stringify(currentConfig[key]) !== JSON.stringify(newConfig[key]);
+        });
+        
+        if (!hasChanges) {
+            console.log('No hay cambios en la configuración, ignorando...');
+            return { 
+                success: true, 
+                config: config.getSafeConfig(),
+                message: 'No se detectaron cambios en la configuración',
+                updatedFields: []
+            };
+        }
 
         // Actualizar cada valor individualmente
-        console.log('Iniciando LdA Uploader...');
         const updatedFields = [];
         for (const [key, value] of Object.entries(newConfig)) {
             if (value !== undefined) {
-                console.log(`Actualizando ${key}:`, value);
+                console.log(`Actualizando ${key}:`, key === 'password' ? '********' : value);
                 config.set(key, value);
                 updatedFields.push(key);
             }
         }
         
-        // Obtener configuración actualizada
-        const updatedConfig = config.getAll();
-        
         // Guardar la configuración en disco
         console.log('Guardando configuración en disco...');
+        
+        // Obtener la configuración actualizada (usando un nombre diferente para evitar duplicados)
+        const latestConfig = config.getAll();
+        const updatedConfig = { ...latestConfig, ...newConfig };
+        
+        // Guardar la configuración completa
         const saved = config.saveConfig(updatedConfig);
         
         if (!saved) {
             throw new Error('No se pudo guardar la configuración en disco');
         }
-        
-        // Actualizar la referencia en memoria
-        appConfig = config.getAll();
         
         console.log('Configuración guardada exitosamente');
         
@@ -388,7 +428,7 @@ ipcMain.handle('save-config', async (event, newConfig) => {
             updatedFields: updatedFields
         };
         
-        console.log('Enviando respuesta al renderer:', JSON.stringify(response, null, 2));
+        console.log('Enviando respuesta al renderer');
         return response;
         
     } catch (error) {
@@ -399,6 +439,8 @@ ipcMain.handle('save-config', async (event, newConfig) => {
             error: error.message 
         };
     } finally {
+        // Restablecer el estado de guardado
+        isSavingConfig = false;
         console.log('=== FIN save-config ===\n');
     }
 });
@@ -466,31 +508,53 @@ function sendToLdA(qso) {
         // Asegurar formato HHMM
         timeStr = timeStr.padStart(4, '0').substring(0, 4);
         
-        // Crear objeto de parámetros
-        const params = {
-            user: appConfig.username,
-            pass: appConfig.password,
-            micall: appConfig.callsign,
-            sucall: call || 'NOCALL',
-            banda: band || '?',
-            modo: mode || '?',
-            fecha: formattedDate,
-            hora: timeStr,
-            rst: rstSent,
-            x_qslMSG: comment || '73 & DX'
+        // Crear objeto de parámetros con codificación segura
+        const params = new URLSearchParams();
+        
+        // Función para limpiar valores
+        const cleanValue = (value) => {
+            if (value === null || value === undefined) return '';
+            return value.toString().trim();
         };
+        
+        // Verificar que la contraseña no sea el marcador de posición
+        const actualPassword = appConfig.password === '********' ? 
+            config.get('password') : // Obtener la contraseña real del almacenamiento
+            appConfig.password;
+            
+        if (!actualPassword) {
+            throw new Error('No se pudo obtener la contraseña de la configuración');
+        }
+
+        console.log('Credenciales para la petición:', {
+            username: appConfig.username,
+            callsign: appConfig.callsign,
+            passwordLength: actualPassword.length,
+            usingPlaceholder: appConfig.password === '********'
+        });
+
+        // Agregar parámetros con codificación adecuada
+        // Nota: URLSearchParams maneja la codificación automáticamente
+        params.append('user', cleanValue(appConfig.username));
+        params.append('pass', cleanValue(actualPassword));
+        params.append('micall', cleanValue(appConfig.callsign));
+        params.append('sucall', cleanValue(call) || 'NOCALL');
+        params.append('banda', cleanValue(band) || '?');
+        params.append('modo', cleanValue(mode) || '?');
+        params.append('fecha', cleanValue(formattedDate));
+        params.append('hora', cleanValue(timeStr));
+        params.append('rst', cleanValue(rstSent));
+        params.append('x_qslMSG', cleanValue(comment || '73 & DX'));
         
         // Solo agregar prop_mode si tiene un valor y no es 'N/A'
         if (propMode && propMode !== 'N/A') {
-            params.prop = propMode;
+            params.append('prop', safeEncode(propMode));
         }
-        
-        // Convertir a URLSearchParams
-        const searchParams = new URLSearchParams(params);
 
+        const path = `/php/subeqso.php?${params.toString()}`;
         const options = {
             hostname: 'www.lda.ar',
-            path: `/php/subeqso.php?${searchParams.toString()}`,
+            path: path,
             method: 'GET',
             headers: {
                 'User-Agent': 'LdA-Uploader/1.0',
@@ -499,7 +563,18 @@ function sendToLdA(qso) {
             }
         };
         
-        console.log('Enviando a LdA:', `https://${options.hostname}${options.path}`);
+        // Log de depuración (sin mostrar la contraseña)
+        const debugParams = new URLSearchParams(params);
+        if (debugParams.has('pass')) {
+            debugParams.set('pass', '********');
+        }
+        console.log('Enviando a LdA:', `https://${options.hostname}${path.replace(params.get('pass'), '********')}`);
+        console.log('Detalles de la petición:', {
+            username: appConfig.username,
+            callsign: appConfig.callsign,
+            passwordLength: appConfig.password ? appConfig.password.length : 0,
+            hasPassword: !!appConfig.password
+        });
         
         const req = https.request(options, (res) => {
             let data = '';
@@ -533,7 +608,13 @@ function sendToLdA(qso) {
 
 // Configuración de la aplicación
 app.whenReady().then(() => {
+    // Inicializar la ventana principal
     createWindow();
+    
+    // Inicializar el ícono de la bandeja (solo una vez)
+    setupTrayIcon();
+    
+    // Iniciar el servidor UDP
     startUDPServer();
     
     app.on('activate', () => {
