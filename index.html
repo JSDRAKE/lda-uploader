@@ -77,6 +77,15 @@
                         <input type="text" id="callsign" name="callsign" placeholder="TU_INDICATIVO" required>
                     </div>
                     <div class="form-group">
+                        <label for="software">Software:</label>
+                        <select id="software" name="software" class="form-control">
+                            <option value="log4om">Log4OM (predeterminado)</option>
+                            <option value="wsjtx">WSJT-X</option>
+                            <option value="jtdx">JTDX</option>
+                            <option value="n1mm">N1MM</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <label>
                             <input type="checkbox" id="startMinimized"> Iniciar minimizado
                         </label>
