@@ -1,195 +1,49 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LdA Uploader</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-            color: #333;
-        }
-        .container {
-            max-width: 100%;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }
-        .header {
-            background-color: #2c3e50;
-            color: white;
-            padding: 15px 20px;
-            font-size: 18px;
-            font-weight: bold;
-        }
-        .content {
-            padding: 20px;
-        }
-        .status {
-            margin-bottom: 20px;
-            padding: 10px;
-            border-radius: 4px;
-            background-color: #e8f5e9;
-            color: #2e7d32;
-            font-weight: 500;
-        }
-        .status.error {
-            background-color: #ffebee;
-            color: #c62828;
-        }
-        .log {
-            height: 300px;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            padding: 10px;
-            font-family: 'Consolas', monospace;
-            font-size: 12px;
-            background-color: #fafafa;
-            margin-top: 10px;
-            white-space: pre-wrap;
-            word-break: break-all;
-        }
-        .settings {
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-radius: 4px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
-        }
-        input[type="text"], input[type="password"] {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        button {
-            background-color: #2c3e50;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: 500;
-        }
-        button:hover {
-            background-color: #1a252f;
-        }
-    </style>
+    <link rel="stylesheet" href="src/css/styles.css">
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            LdA Uploader
-        </div>
-        <div class="content">
+        <header class="header">
+            <h1>LdA Uploader</h1>
+        </header>
+        
+        <main class="content">
             <div class="status" id="status">
                 Servidor UDP escuchando en el puerto 2233
             </div>
             
-            <div class="settings">
-                <h3>Configuración</h3>
+            <form id="settingsForm" class="settings">
+                <h2>Configuración</h2>
                 <div class="form-group">
                     <label for="username">Usuario LdA:</label>
-                    <input type="text" id="username" placeholder="Tu usuario de LdA">
+                    <input type="text" id="username" name="username" placeholder="Tu usuario de LdA" required>
                 </div>
                 <div class="form-group">
                     <label for="password">Contraseña LdA:</label>
-                    <input type="password" id="password" placeholder="Tu contraseña">
+                    <input type="password" id="password" name="password" placeholder="Tu contraseña" required>
                 </div>
                 <div class="form-group">
                     <label for="callsign">Indicativo:</label>
-                    <input type="text" id="callsign" placeholder="TU_INDICATIVO">
+                    <input type="text" id="callsign" name="callsign" placeholder="TU_INDICATIVO" required>
                 </div>
-                <button id="saveSettings">Guardar Configuración</button>
-            </div>
+                <button type="submit" id="saveSettings">Guardar Configuración</button>
+            </form>
 
-            <h3>Registro de Actividad</h3>
-            <div class="log" id="log"></div>
-        </div>
+            <section class="log-section">
+                <h2>Registro de Actividad</h2>
+                <div class="log" id="log"></div>
+            </section>
+        </main>
     </div>
 
-    <script>
-        const logElement = document.getElementById('log');
-        const statusElement = document.getElementById('status');
-        const usernameInput = document.getElementById('username');
-        const passwordInput = document.getElementById('password');
-        const callsignInput = document.getElementById('callsign');
-        const saveButton = document.getElementById('saveSettings');
-
-        // Cargar configuración guardada al iniciar
-        async function loadConfig() {
-            try {
-                const config = await window.electron.loadConfig();
-                if (config) {
-                    document.getElementById('username').value = config.username || '';
-                    // No mostramos la contraseña real, solo marcadores de posición
-                    document.getElementById('password').value = config.password ? '********' : '';
-                    document.getElementById('callsign').value = config.callsign || '';
-                    log('Configuración cargada correctamente');
-                }
-            } catch (error) {
-                log('Error al cargar la configuración: ' + error.message);
-            }
-        }
-
-        // Guardar configuración
-        saveButton.addEventListener('click', async () => {
-            try {
-                const currentPassword = document.getElementById('password').value;
-                const config = {
-                    username: document.getElementById('username').value.trim(),
-                    // Solo actualizar la contraseña si no es un marcador de posición
-                    password: currentPassword === '********' ? 
-                        (appConfig.password || '') : 
-                        currentPassword,
-                    callsign: document.getElementById('callsign').value.trim().toUpperCase()
-                };
-                
-                await window.electron.saveConfig(config);
-                log('Configuración guardada correctamente');
-            } catch (error) {
-                log('Error al guardar la configuración: ' + error.message);
-            }
-        });
-        
-        // Cargar configuración al iniciar
-        loadConfig();
-
-        // Función para agregar mensajes al registro
-        function log(message) {
-            const timestamp = new Date().toLocaleTimeString();
-            logElement.innerHTML += `[${timestamp}] ${message}\n`;
-            logElement.scrollTop = logElement.scrollHeight;
-        }
-
-        // Escuchar mensajes del proceso principal
-        window.electron.onLog((event, message) => {
-            log(message);
-        });
-
-        // Manejar errores no capturados
-        window.onerror = function(message, source, lineno, colno, error) {
-            log(`Error: ${message} en ${source}:${lineno}:${colno}`);
-            if (error && error.stack) {
-                log(error.stack);
-            }
-            return true;
-        };
-
-        // Mostrar mensaje de bienvenida
-        log('LdA Uploader iniciado correctamente');
-        log('Esperando datos de Log4OM en el puerto 2233...');
-    </script>
+    <!-- Cargar scripts -->
+    <script src="src/js/logger.js"></script>
+    <script src="src/js/configManager.js"></script>
+    <script src="src/js/app.js"></script>
 </body>
 </html>
