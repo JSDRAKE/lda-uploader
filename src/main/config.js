@@ -7,6 +7,8 @@ const defaultConfig = {
   username: '',
   password: '',
   callsign: '',
+  startMinimized: false,  // Mantener compatibilidad
+  startInTray: true,      // Nueva opción para iniciar en la bandeja
   windowBounds: { width: 800, height: 600 },
   lastState: {}
 };
@@ -38,13 +40,20 @@ function loadConfig() {
 }
 
 // Guardar configuración en archivo
-function saveConfig(config) {
+function saveConfig(newConfig) {
   try {
     const dir = path.dirname(CONFIG_FILE);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
+    
+    // Si no se proporciona newConfig, guardar la configuración actual
+    const configToSave = newConfig || loadConfig();
+    
+    // Asegurarse de que la configuración incluye los valores por defecto
+    const completeConfig = { ...defaultConfig, ...configToSave };
+    
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(completeConfig, null, 2), 'utf8');
     return true;
   } catch (error) {
     console.error('Error al guardar configuración:', error);
@@ -76,7 +85,13 @@ function get(key) {
 function set(key, value) {
   const config = loadConfig();
   config[key] = value;
-  saveConfig(config);
+  
+  // Guardar la configuración completa
+  const saved = saveConfig(config);
+  if (!saved) {
+    console.error(`No se pudo guardar el valor para la clave: ${key}`);
+  }
+  
   return value;
 }
 
