@@ -8,11 +8,12 @@
   "license": "MIT",
   "email": "lu9wt@jsdrake.com.ar",
   "main": "main.js",
-  "scripts": { "start": "electron .",
-  "build": "electron-builder",
-  "pack": "electron-builder --dir",
-  "dist": "electron-builder",
-  "postinstall": "electron-builder install-app-deps"
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "postinstall": "electron-builder install-app-deps"
   },
   "keywords": [
     "hamradio",
@@ -24,5 +25,8 @@
     "electron": "^37.2.0",
     "electron-builder": "^26.0.12",
     "electron-tray-window": "^1.2.7"
+  },
+  "dependencies": {
+    "electron-store": "^10.1.0"
   }
 }

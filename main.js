@@ -1,7 +1,11 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu } = require('electron');
 const path = require('path');
 const dgram = require('dgram');
 const https = require('https');
+const config = require('./config');
+
+// Mostrar información de depuración
+console.log('Ruta de configuración:', path.join(app.getPath('userData'), 'lda-uploader-config.json'));
 
 // Parser ADIF simple
 function parseADIF(adifString) {
@@ -33,7 +37,29 @@ let mainWindow;
 let tray = null;
 let udpServer = null;
 
+// Variable para controlar el cierre de la aplicación
+app.isQuitting = false;
+
+// Configurar el evento before-quit
+app.on('before-quit', () => {
+    app.isQuitting = true;
+    
+    // Limpiar el ícono de la bandeja al salir
+    if (tray) {
+        tray.destroy();
+    }
+    
+    // Cerrar todas las ventanas
+    const windows = BrowserWindow.getAllWindows();
+    windows.forEach(window => {
+        window.removeAllListeners('close');
+        window.close();
+    });
+});
+
+// Crear ventana principal
 function createWindow() {
+    // Crear la ventana del navegador
     mainWindow = new BrowserWindow({
         width: 800,
         height: 600,
@@ -41,38 +67,78 @@ function createWindow() {
             nodeIntegration: false,
             contextIsolation: true,
             preload: path.join(__dirname, 'preload.js')
-        }
+        },
+        show: false // No mostrar la ventana inmediatamente
     });
 
     // Cargar el archivo HTML
     mainWindow.loadFile('index.html');
 
-    // Crear un ícono temporal en memoria
-    const { nativeImage } = require('electron');
-    const icon = nativeImage.createEmpty();
-    tray = new Tray(icon);
-    
-    const contextMenu = Menu.buildFromTemplate([
-        { 
-            label: 'Abrir', 
-            click: () => mainWindow.show() 
-        },
-        { 
-            label: 'Salir', 
-            click: () => {
-                app.isQuitting = true;
-                app.quit();
-            } 
+    try {
+        let trayIcon = null;
+        const { nativeImage } = require('electron');
+        
+        // Primero intentar cargar el ícono del directorio de assets
+        try {
+            const iconPath = path.join(__dirname, 'assets', 'icon.png');
+            if (require('fs').existsSync(iconPath)) {
+                trayIcon = nativeImage.createFromPath(iconPath);
+                console.log('Ícono cargado desde:', iconPath);
+            } else {
+                console.warn('No se encontró el archivo de ícono en:', iconPath);
+            }
+        } catch (iconError) {
+            console.warn('Error al cargar el ícono personalizado:', iconError.message);
         }
-    ]);
-    
-    tray.setToolTip('LdA Uploader');
-    tray.setContextMenu(contextMenu);
-    
-    // Mostrar la ventana cuando se hace clic en el ícono de la bandeja
-    tray.on('click', () => {
-        mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
-    });
+        
+        // Si no se pudo cargar el ícono, crear uno simple programáticamente
+        if (!trayIcon || trayIcon.isEmpty()) {
+            console.log('Creando ícono simple programáticamente');
+            trayIcon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAOxAAADsQBlSsOGwAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAANCSURBVFiF7Zc/aBxVGMZ/33szu7PZbDa7m2w2m2x2s9lsNv9qNtlsNpvd7GY3u9lsNpvd7GY3u9nNbnaTzWaz2Ww2m81ms9lsNpvNZrPZbDabzWaz2Ww2m81ms9lsNpvNZrPZbDabzWaz2Ww2m81ms9lsNpvNZrPZbDabzWaz2Wz/B1JKJYQ4D1wCzgJngA6gA1gFloGfgO+llIeN5jZqQEqpgLvAHSHEOeA7YF5K+W2jBf4NQogO4CbwFfA1cFMI8U2j+Ro2IKW8CHwBfCqlfFdK+QnwKfC5lPJio7kbMSCEeA/4GHgvpXzr5PpN4CPgIyHE+43kb8TA+8BHUspP6i9KKT8GPgQ+aCD3fw4hxHngnJTyq2PufwmcFUKcayR/vXgXePqU+08BTzSSvF4Dl4DvT7n/PfB0vcnrNXAG2D7l/hbQWW/yeg3sA72n3O8B9upNXq+BH4FXT7n/KvBDvcnrNfA58K4Q4o36i0KIN4B3gM/rTf6fIaXsAL4E3gI+EEJcB14H3pJS3j3p2X8MKeU+8ALwDvA28PxpxdcaqHcQKqV8GXgJeE5K+XWt8aoGpJQvAh8Cz0spv6n1+VoMvA18JqX8ttbCToIQ4gLwBfCclPJ+rc9XNSCEeBZ4R0r5fK0F1oIQ4h7wjpTyu1qfrdmAlPJ+PQXWwzH5a4p6Z4Jt4Gydz9bLWeCwngfrMfA98FwdzzXCDWBBCNFZ64P1GHgIvCGEeKqOZ2tCCPEE8CbwZ63P1mzg5KvzJvCJEOJqPc/WwEfA+1LKvVofrHcQfgLcB24JIR4IIW4JIR4IIW4JIR7U8zJCCPEK8CzwXj3P1z0TSCmvAdeAq8A14BpwVUp5rZ7cQoiXgA+Ba1LK7Xpy1BxSyvtCiHvAZeAe8EBK+UM9uYUQTwJ3gGtSyh/rydFQSCk7gYvAJeAicB7oBrqALWAF+AX4WUq5VpPJ/wA5D1cKxqo1bAAAAABJRU5ErkJggg==');
+        }
+        
+        // Crear el ícono de la bandeja
+        tray = new Tray(trayIcon);
+        
+        const contextMenu = Menu.buildFromTemplate([
+            { 
+                label: 'Mostrar/Ocultar', 
+                click: () => {
+                    if (mainWindow.isVisible()) {
+                        mainWindow.hide();
+                    } else {
+                        mainWindow.show();
+                        mainWindow.focus();
+                    }
+                } 
+            },
+            { 
+                label: 'Salir', 
+                click: () => {
+                    app.isQuitting = true;
+                    app.quit();
+                } 
+            }
+        ]);
+        
+        tray.setToolTip('LdA Uploader');
+        tray.setContextMenu(contextMenu);
+        
+        // Mostrar/ocultar la ventana al hacer clic en el ícono
+        tray.on('click', () => {
+            if (mainWindow.isVisible()) {
+                mainWindow.hide();
+            } else {
+                mainWindow.show();
+                mainWindow.focus();
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error al configurar el ícono de la bandeja:', error);
+        // Si hay un error, continuar sin el ícono de la bandeja
+        tray = null;
+    }
     
     // Mostrar la ventana principal al inicio
     mainWindow.show();
@@ -182,13 +248,83 @@ function startUDPServer() {
     }
 }
 
-// Variable global para almacenar la configuración
-let appConfig = {};
+// Cargar configuración inicial
+let appConfig = config.getAll();
 
-// Función para actualizar la configuración desde el renderer
-ipcMain.on('update-config', (event, config) => {
-    appConfig = config;
-    console.log('Configuración actualizada:', JSON.stringify(config, null, 2));
+// Mostrar configuración cargada
+console.log('Configuración cargada:', JSON.stringify(appConfig, null, 2));
+
+// Verificar si la configuración existe, si no, crear una por defecto
+if (!config.has('callsign') || !config.get('callsign')) {
+  console.log('Configuración no encontrada, creando valores por defecto...');
+  config.set('username', '');
+  config.set('password', '');
+  config.set('callsign', '');
+  config.set('windowBounds', { width: 800, height: 600 });
+  config.set('lastState', {});
+  appConfig = config.getAll();
+}
+
+// Manejadores de eventos para la configuración
+ipcMain.on('save-config', (event, newConfig) => {
+    try {
+        console.log('Guardando configuración:', newConfig);
+        
+        // Validar configuración
+        if (!newConfig.username || !newConfig.callsign) {
+            throw new Error('Usuario e indicativo son obligatorios');
+        }
+        
+        // Guardar la configuración
+        Object.entries(newConfig).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) {
+                config.set(key, value);
+            }
+        });
+        
+        // Actualizar la configuración en memoria
+        appConfig = config.getAll();
+        
+        // Notificar al renderer que la configuración se guardó
+        event.sender.send('config-saved', { 
+            success: true,
+            config: config.getSafeConfig()
+        });
+        
+        console.log('Configuración guardada correctamente');
+    } catch (error) {
+        console.error('Error al guardar configuración:', error);
+        event.sender.send('config-saved', { 
+            success: false,
+            error: error.message 
+        });
+    }
+});
+
+// Cargar configuración
+ipcMain.handle('load-config', async () => {
+    try {
+        const currentConfig = config.getSafeConfig();
+        console.log('Configuración cargada para el renderer:', currentConfig);
+        return { success: true, config: currentConfig };
+    } catch (error) {
+        console.error('Error al cargar configuración:', error);
+        return { 
+            success: false, 
+            error: error.message,
+            config: config.getSafeConfig() // Devolver configuración por defecto
+        };
+    }
+});
+
+// Actualizar configuración en tiempo real
+ipcMain.on('update-config', (event, newConfig) => {
+    Object.entries(newConfig).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+            appConfig[key] = value;
+            config.set(key, value);
+        }
+    });
 });
 
 // Función para enviar datos a LdA

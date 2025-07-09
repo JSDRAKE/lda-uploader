@@ -131,35 +131,35 @@
         async function loadConfig() {
             try {
                 const config = await window.electron.loadConfig();
-                usernameInput.value = config.username || '';
-                passwordInput.value = config.password || '';
-                callsignInput.value = config.callsign || '';
-                log('Configuración cargada');
+                if (config) {
+                    document.getElementById('username').value = config.username || '';
+                    // No mostramos la contraseña real, solo marcadores de posición
+                    document.getElementById('password').value = config.password ? '********' : '';
+                    document.getElementById('callsign').value = config.callsign || '';
+                    log('Configuración cargada correctamente');
+                }
             } catch (error) {
-                console.error('Error al cargar configuración:', error);
-                log('Error al cargar configuración: ' + error.message);
+                log('Error al cargar la configuración: ' + error.message);
             }
         }
 
         // Guardar configuración
         saveButton.addEventListener('click', async () => {
             try {
+                const currentPassword = document.getElementById('password').value;
                 const config = {
-                    username: usernameInput.value.trim(),
-                    password: passwordInput.value,
-                    callsign: callsignInput.value.trim().toUpperCase()
+                    username: document.getElementById('username').value.trim(),
+                    // Solo actualizar la contraseña si no es un marcador de posición
+                    password: currentPassword === '********' ? 
+                        (appConfig.password || '') : 
+                        currentPassword,
+                    callsign: document.getElementById('callsign').value.trim().toUpperCase()
                 };
                 
                 await window.electron.saveConfig(config);
                 log('Configuración guardada correctamente');
-                
-                // Ocultar contraseña en el log
-                const hiddenPassword = '*'.repeat(config.password.length);
-                log(`Usuario: ${config.username}, Indicativo: ${config.callsign}`);
-                
             } catch (error) {
-                console.error('Error al guardar configuración:', error);
-                log('Error: ' + error.message);
+                log('Error al guardar la configuración: ' + error.message);
             }
         });
         
