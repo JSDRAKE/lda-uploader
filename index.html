@@ -8,37 +8,129 @@
 </head>
 <body>
     <div class="container">
-        <header class="header">
-            <h1>LdA Uploader</h1>
-        </header>
+        <!-- Menú Lateral -->
+        <nav class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <button class="toggle-btn" id="toggleSidebar">☰</button>
+                <h2>Menú</h2>
+            </div>
+            <ul class="sidebar-menu">
+                <li class="menu-item active" data-section="dashboard">
+                    <span class="icon">📊</span>
+                    <span class="text">Panel Principal</span>
+                </li>
+                <li class="menu-item" data-section="settings">
+                    <span class="icon">⚙️</span>
+                    <span class="text">Configuración</span>
+                </li>
+                <li class="menu-item" data-section="logs">
+                    <span class="icon">📋</span>
+                    <span class="text">Registros</span>
+                </li>
+                <li class="menu-item" data-section="about">
+                    <span class="icon">ℹ️</span>
+                    <span class="text">Acerca de</span>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Contenido Principal -->
+        <div class="main-content">
+            <header class="header">
+                <button class="menu-toggle" id="mobileMenuToggle">☰</button>
+                <h1>LdA Uploader</h1>
+            </header>
         
         <main class="content">
-            <div class="status" id="status">
-                Servidor UDP escuchando en el puerto 2233
-            </div>
-            
-            <form id="settingsForm" class="settings">
-                <h2>Configuración</h2>
-                <div class="form-group">
-                    <label for="username">Usuario LdA:</label>
-                    <input type="text" id="username" name="username" placeholder="Tu usuario de LdA" required>
+            <!-- Sección del Panel Principal -->
+            <section id="dashboard-section" class="content-section active">
+                <div class="status" id="status">
+                    Servidor UDP escuchando en el puerto 2233
                 </div>
-                <div class="form-group">
-                    <label for="password">Contraseña LdA:</label>
-                    <input type="password" id="password" name="password" placeholder="Tu contraseña" required>
+                
+                <div class="dashboard-stats">
+                    <div class="stat-card">
+                        <h3>QSOs Enviados</h3>
+                        <div class="stat-value" id="qsos-sent">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Estado</h3>
+                        <div class="stat-value" id="connection-status">Conectado</div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="callsign">Indicativo:</label>
-                    <input type="text" id="callsign" name="callsign" placeholder="TU_INDICATIVO" required>
-                </div>
-                <button type="submit" id="saveSettings">Guardar Configuración</button>
-            </form>
-
-            <section class="log-section">
-                <h2>Registro de Actividad</h2>
-                <div class="log" id="log"></div>
             </section>
-        </main>
+
+            <!-- Sección de Configuración -->
+            <section id="settings-section" class="content-section" style="display: none;">
+                <h2>Configuración</h2>
+                <form id="settingsForm" class="settings">
+                    <div class="form-group">
+                        <label for="username">Usuario LdA:</label>
+                        <input type="text" id="username" name="username" placeholder="Tu usuario de LdA" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Contraseña LdA:</label>
+                        <input type="password" id="password" name="password" placeholder="Tu contraseña" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="callsign">Indicativo:</label>
+                        <input type="text" id="callsign" name="callsign" placeholder="TU_INDICATIVO" required>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="startMinimized"> Iniciar minimizado
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="startInTray" checked> Iniciar en la bandeja del sistema
+                        </label>
+                        <p class="form-hint">Si está marcado, la aplicación se iniciará minimizada en la bandeja del sistema.</p>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" id="saveSettings" class="btn btn-primary">
+                            <span class="btn-text">Guardar Configuración</span>
+                            <span class="btn-loading"></span>
+                        </button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Sección de Registros -->
+            <section id="logs-section" class="content-section" style="display: none;">
+                <div class="section-header">
+                    <h2>Registro de Actividad</h2>
+                    <button id="clearLogs" class="btn btn-secondary">Limpiar Registros</button>
+                </div>
+                <div class="log-container">
+                    <div class="log" id="log"></div>
+                </div>
+            </section>
+
+            <!-- Sección Acerca de -->
+            <section id="about-section" class="content-section" style="display: none;">
+                <div class="about-content">
+                    <div class="app-logo">
+                        <img src="src/assets/icon.png" alt="LdA Uploader Logo">
+                    </div>
+                    <h2>LdA Uploader</h2>
+                    <p class="version">Versión 1.0.0</p>
+                    <p class="author">Desarrollado por JSDRAKE - LU9WT</p>
+                    <p class="description">
+                        Aplicación para subir automáticamente QSOs a LdA desde Log4OM
+                    </p>
+                    <div class="links">
+                        <a href="https://www.jsdrake.com.ar" target="_blank" class="btn btn-link">
+                            <span class="icon">🌐</span> Sitio Web
+                        </a>
+                        <a href="https://github.com/jsdrake/lda-uploader" target="_blank" class="btn btn-link">
+                            <span class="icon">🐙</span> GitHub
+                        </a>
+                    </div>
+                </div>
+            </section>
+            </main>
+        </div>
     </div>
 
     <!-- Cargar scripts como módulos ES -->
