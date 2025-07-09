@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LdA Uploader</title>
-    <link rel="stylesheet" href="src/css/styles.css">
+    <link rel="stylesheet" href="src/renderer/css/styles.css">
 </head>
 <body>
     <div class="container">
@@ -41,9 +41,7 @@
         </main>
     </div>
 
-    <!-- Cargar scripts -->
-    <script src="src/js/logger.js"></script>
-    <script src="src/js/configManager.js"></script>
-    <script src="src/js/app.js"></script>
+    <!-- Cargar scripts como módulos ES -->
+    <script type="module" src="src/renderer/js/app.js"></script>
 </body>
 </html>
