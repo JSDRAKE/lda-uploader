@@ -1,8 +1,14 @@
 export class ConfigManager {
     constructor() {
         this.form = document.getElementById('settingsForm') || document.createElement('form');
+        // Campos del formulario que se envían al guardar
         this.fields = ['username', 'password', 'callsign'];
+        // Campos de configuración adicionales (checkboxes)
+        this.configFields = ['startMinimized', 'startInTray', 'sidebarCollapsed'];
         this.isSaving = false;
+        this.saveDebounceTimeout = null;
+        this.lastSavedConfig = null;
+        this.initialLoadComplete = false;
         this.initialize();
     }
 
@@ -12,16 +18,68 @@ export class ConfigManager {
     }
 
     bindEvents() {
-        this.form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            await this.saveConfig();
+        // Usar { once: true } para evitar múltiples manejadores
+        this.form.removeEventListener('submit', this.handleFormSubmit);
+        this.handleFormSubmit = this.handleFormSubmit.bind(this);
+        this.form.addEventListener('submit', this.handleFormSubmit);
+    }
+    
+    async handleFormSubmit(e) {
+        e.preventDefault();
+        
+        // Recolectar los datos del formulario
+        const formData = {};
+        
+        // Obtener valores de los campos de texto
+        this.fields.forEach(field => {
+            const input = document.getElementById(field);
+            if (input) {
+                // No actualizar la contraseña si es un marcador de posición
+                if (field === 'password' && input.value === '********') {
+                    return;
+                }
+                formData[field] = field === 'callsign' 
+                    ? input.value.trim().toUpperCase() 
+                    : input.value.trim();
+            }
         });
+        
+        // Obtener valores de los checkboxes
+        this.configFields.forEach(field => {
+            const input = document.getElementById(field);
+            if (input) {
+                formData[field] = input.checked;
+            }
+        });
+        
+        console.log('Guardando configuración del formulario:', formData);
+        
+        // Usar requestAnimationFrame para evitar bloqueos de la interfaz
+        requestAnimationFrame(async () => {
+            const success = await this.saveConfig(formData);
+            if (success) {
+                this.showTemporaryMessage('Configuración guardada correctamente', 'success');
+            }
+        });
+    }
+
+    // Obtener la configuración actual
+    async getConfig() {
+        try {
+            return await window.electron.loadConfig() || {};
+        } catch (error) {
+            console.error('Error al cargar la configuración:', error);
+            return {};
+        }
     }
 
     async loadConfig() {
         try {
             const config = await window.electron.loadConfig();
             if (config) {
+                console.log('Loading config:', JSON.stringify(config, null, 2));
+                
+                // Cargar campos del formulario
                 this.fields.forEach(field => {
                     const input = document.getElementById(field);
                     if (input) {
@@ -32,6 +90,23 @@ export class ConfigManager {
                         }
                     }
                 });
+
+                // Cargar configuración de checkboxes
+                this.configFields.forEach(field => {
+                    const input = document.getElementById(field);
+                    if (input) {
+                        input.checked = !!config[field];
+                        console.log(`Setting ${field} to ${input.checked}`);
+                    }
+                });
+
+                // Guardar el estado inicial
+                if (!this.initialLoadComplete) {
+                    this.lastSavedConfig = { ...config };
+                    this.initialLoadComplete = true;
+                    console.log('Initial config loaded and saved');
+                }
+
                 return config;
             }
         } catch (error) {
@@ -40,93 +115,124 @@ export class ConfigManager {
         }
     }
 
-    async saveConfig() {
-        console.log('Iniciando guardado de configuración...');
+    async saveConfig(partialConfig = null) {
+        // Si no hay configuración parcial, no hacer nada
+        if (!partialConfig || typeof partialConfig !== 'object' || Object.keys(partialConfig).length === 0) {
+            console.log('No se proporcionó configuración para guardar');
+            return false;
+        }
+
+        // Si ya se está guardando, rechazar la operación actual
         if (this.isSaving) {
             console.log('Ya hay un guardado en proceso, ignorando...');
-            return;
+            return false;
         }
-        
+
         this.isSaving = true;
-        const saveButton = document.getElementById('saveSettings');
-        const originalText = saveButton.textContent;
+        console.log('=== INICIO save-config ===');
+        console.log('Nueva configuración recibida:', { 
+            ...partialConfig, 
+            password: partialConfig.password ? '***' : 'empty' 
+        });
         
-        try {
-            console.log('Deshabilitando botón de guardado...');
+        // Deshabilitar el botón de guardado y mostrar indicador de carga
+        const saveButton = document.getElementById('saveSettings');
+        const buttonText = saveButton?.querySelector('.btn-text');
+        const buttonLoading = saveButton?.querySelector('.btn-loading');
+        const originalText = buttonText?.textContent || 'Guardar';
+        
+        if (saveButton) {
             saveButton.disabled = true;
-            saveButton.innerHTML = 'Guardando... <span class="loading"></span>';
+            if (buttonText) buttonText.textContent = 'Guardando...';
+            if (buttonLoading) buttonLoading.style.display = 'inline-block';
+        }
+
+        try {
+            // Cargar la configuración actual
+            const currentConfig = await this.getConfig();
+            const configToSave = { ...currentConfig };
+            let hasChanges = false;
             
-            const config = {};
-            console.log('Recopilando datos del formulario...');
-            this.fields.forEach(field => {
-                const input = document.getElementById(field);
-                if (input) {
-                    console.log(`Campo ${field}:`, input.value);
-                    // No actualizar la contraseña si es un marcador de posición
-                    if (field === 'password' && input.value === '********') {
-                        console.log('Ignorando contraseña sin cambios...');
-                        return;
-                    }
-                    config[field] = field === 'callsign' 
-                        ? input.value.trim().toUpperCase() 
-                        : input.value.trim();
+            // Aplicar los cambios de la configuración parcial
+            Object.entries(partialConfig).forEach(([key, value]) => {
+                // Si es la contraseña y es el marcador de posición, mantener la contraseña actual
+                if (key === 'password' && value === '********') {
+                    console.log('Manteniendo contraseña actual (se recibió marcador de posición)');
+                    return;
+                }
+                
+                // Verificar si el valor ha cambiado
+                if (JSON.stringify(configToSave[key]) !== JSON.stringify(value)) {
+                    console.log(`Actualizando ${key}:`, key === 'password' ? '***' : value);
+                    configToSave[key] = value;
+                    hasChanges = true;
                 }
             });
-
-            console.log('Enviando configuración al proceso principal:', config);
-            try {
-                console.log('Enviando configuración al proceso principal...');
-                const result = await window.electron.saveConfig(config);
-                console.log('Respuesta del proceso principal recibida:', JSON.stringify(result, null, 2));
-                
-                // Verificar si la respuesta es un string (lo cual no debería pasar)
-                if (typeof result === 'string') {
-                    console.error('La respuesta del proceso principal es un string en lugar de un objeto');
-                    this.showStatus('Error: Respuesta del servidor en formato incorrecto', 'error');
-                    return false;
-                }
-
-                // Verificar si result es un objeto y tiene la propiedad success
-                if (result && typeof result === 'object' && result.success === true) {
-                    console.log('Configuración guardada exitosamente');
-                    // Actualizar el marcador de posición de la contraseña
-                    if (config.password) {
-                        document.getElementById('password').value = '********';
-                    }
-                    // Usar el mensaje de la respuesta o uno por defecto
-                    const successMessage = result.message || 'Configuración guardada correctamente';
-                    this.showStatus(successMessage, 'success');
-                    return true;
-                } else {
-                    // Si result es undefined, null, no tiene success, o success es false
-                    const errorMsg = (result && result.error) || 'Error desconocido al guardar la configuración';
-                    console.error('Error al guardar configuración:', errorMsg);
-                    this.showStatus(`Error: ${errorMsg}`, 'error');
-                    return false;
-                }
-            } catch (error) {
-                console.error('Error en la comunicación con el proceso principal:', error);
-                const errorMessage = error.message || 'Error al comunicarse con el proceso principal';
-                this.showStatus(`Error: ${errorMessage}`, 'error');
-                return false;
+            
+            if (!hasChanges) {
+                console.log('No hay cambios para guardar');
+                this.showTemporaryMessage('No hay cambios para guardar', 'info');
+                return true;
             }
+            
+            console.log('Guardando configuración en disco...');
+            
+            // Guardar la configuración actualizada
+            const success = await window.electron.saveConfig(configToSave);
+            
+            if (success) {
+                console.log('Configuración guardada exitosamente');
+                // Actualizar la configuración en memoria
+                this.lastSavedConfig = { ...configToSave };
+                // Mostrar notificación de éxito
+                this.showTemporaryMessage('Configuración guardada correctamente', 'success');
+            } else {
+                console.error('Error al guardar la configuración');
+                this.showTemporaryMessage('Error al guardar la configuración', 'error');
+            }
+            
+            console.log('=== FIN save-config ===');
+            return success;
         } catch (error) {
             console.error('Error en saveConfig:', error);
-            this.showStatus(`Error al guardar: ${error.message}`, 'error');
+            this.showTemporaryMessage('Error al guardar la configuración: ' + error.message, 'error');
+            return false;
         } finally {
-            console.log('Restaurando estado del botón de guardado');
-            saveButton.disabled = false;
-            saveButton.textContent = originalText;
             this.isSaving = false;
+            
+            // Restaurar el botón de guardado
+            const saveButton = document.getElementById('saveSettings');
+            const buttonText = saveButton?.querySelector('.btn-text');
+            const buttonLoading = saveButton?.querySelector('.btn-loading');
+            const originalText = buttonText?.textContent || 'Guardar';
+            
+            if (saveButton) {
+                saveButton.disabled = false;
+                if (buttonText) buttonText.textContent = originalText;
+                if (buttonLoading) buttonLoading.style.display = 'none';
+            }
         }
     }
 
-    showStatus(message, type = 'info') {
+    showTemporaryMessage(message, type = 'info') {
         const statusElement = document.getElementById('status');
         if (statusElement) {
             statusElement.textContent = message;
             statusElement.className = `status ${type}`;
+            
+            // Ocultar el mensaje después de 5 segundos
+            if (type !== 'error') {
+                clearTimeout(this.statusTimeout);
+                this.statusTimeout = setTimeout(() => {
+                    statusElement.textContent = '';
+                    statusElement.className = 'status';
+                }, 5000);
+            }
         }
+    }
+
+    showStatus(message, type = 'info') {
+        this.showTemporaryMessage(message, type);
     }
 }
 
