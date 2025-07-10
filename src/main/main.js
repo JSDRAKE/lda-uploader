@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, shell } = require('electron');
 const path = require('path');
 const dgram = require('dgram');
 const https = require('https');
@@ -373,6 +373,21 @@ function initializeConfig() {
 
 // Variable para el caché de configuración
 let cachedConfig = null;
+
+// Manejador para abrir enlaces externos
+ipcMain.handle('open-external', (event, url) => {
+    try {
+        if (typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://'))) {
+            shell.openExternal(url);
+            return true;
+        }
+        console.error('Intento de abrir URL no válida:', url);
+        return false;
+    } catch (error) {
+        console.error('Error al abrir enlace externo:', error);
+        return false;
+    }
+});
 
 // Manejador para cargar la configuración
 ipcMain.handle('load-config', async () => {
