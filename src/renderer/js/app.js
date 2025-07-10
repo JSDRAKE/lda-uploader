@@ -9,9 +9,19 @@ class App {
         this.initialize();
     }
 
-    initialize() {
+    async initialize() {
         this.logger.success('Aplicación iniciada correctamente');
-        this.logger.log('Esperando datos de Log4OM en el puerto 2233...');
+        
+        // Obtener la configuración para mostrar el software y puerto correctos
+        try {
+            const config = await this.configManager.getConfig();
+            const software = config.software || 'log4om';
+            const port = this.getPortForSoftware(software);
+            this.logger.log(`Esperando datos de ${software.toUpperCase()} en el puerto ${port}...`);
+        } catch (error) {
+            console.error('Error al cargar la configuración:', error);
+            this.logger.log('Esperando datos en el puerto 2233 (Log4OM)...');
+        }
         
         // Configurar manejadores de eventos globales
         this.setupErrorHandling();
@@ -34,6 +44,17 @@ class App {
         } else {
             console.warn('window.electron.onLog no está disponible');
         }
+    }
+    
+    // Obtener el puerto según el software seleccionado
+    getPortForSoftware(software) {
+        const ports = {
+            'log4om': 2233,
+            'wsjtx': 2333,
+            'jtdx': 2333,
+            'n1mm': 12060
+        };
+        return ports[software] || 2233;
     }
     
     setupErrorHandling() {
