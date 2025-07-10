@@ -9,7 +9,27 @@ export class ConfigManager {
         this.saveDebounceTimeout = null;
         this.lastSavedConfig = null;
         this.initialLoadComplete = false;
+        this.configChangeListeners = [];
         this.initialize();
+    }
+    
+    // Método para registrar listeners de cambios en la configuración
+    onConfigChange(callback) {
+        if (typeof callback === 'function') {
+            this.configChangeListeners.push(callback);
+        }
+        return this;
+    }
+    
+    // Método para notificar a los listeners sobre cambios en la configuración
+    notifyConfigChange(config) {
+        this.configChangeListeners.forEach(callback => {
+            try {
+                callback(config);
+            } catch (error) {
+                console.error('Error en el listener de cambio de configuración:', error);
+            }
+        });
     }
 
     async initialize() {
@@ -161,13 +181,17 @@ export class ConfigManager {
     async saveConfig(partialConfig = null) {
         // Si no hay configuración parcial, no hacer nada
         if (!partialConfig || typeof partialConfig !== 'object' || Object.keys(partialConfig).length === 0) {
-            console.log('No se proporcionó configuración para guardar');
+            const message = 'No se proporcionó configuración para guardar';
+            console.log(message);
+            this.showNotification(message, 'warning');
             return false;
         }
 
         // Si ya se está guardando, rechazar la operación actual
         if (this.isSaving) {
-            console.log('Ya hay un guardado en proceso, ignorando...');
+            const message = 'Ya hay un guardado en proceso, por favor espere...';
+            console.log(message);
+            this.showNotification(message, 'info');
             return false;
         }
 
@@ -213,29 +237,36 @@ export class ConfigManager {
             });
             
             if (!hasChanges) {
-                console.log('No hay cambios para guardar');
-                this.showTemporaryMessage('No hay cambios para guardar', 'info');
+                const message = 'No se detectaron cambios para guardar';
+                console.log(message);
+                this.showNotification(message, 'info');
                 return true;
             }
             
             console.log('Guardando configuración en disco...');
+            this.showNotification('Guardando configuración...', 'info', 2000);
             
-            // Guardar la configuración actualizada
-            const success = await window.electron.saveConfig(configToSave);
-            
-            if (success) {
-                console.log('Configuración guardada exitosamente');
-                // Actualizar la configuración en memoria
-                this.lastSavedConfig = { ...configToSave };
-                // Mostrar notificación de éxito
-                this.showTemporaryMessage('Configuración guardada correctamente', 'success');
-            } else {
-                console.error('Error al guardar la configuración');
-                this.showTemporaryMessage('Error al guardar la configuración', 'error');
+            try {
+                // Notificar al proceso principal que guarde la configuración
+                const success = await window.electron.saveConfig(configToSave);
+                
+                if (success) {
+                    const message = 'Configuración guardada correctamente';
+                    console.log(message);
+                    this.showNotification(message, 'success');
+                    this.lastSavedConfig = { ...configToSave };
+                    // Notificar a los listeners sobre el cambio de configuración
+                    this.notifyConfigChange(configToSave);
+                    return true;
+                } else {
+                    throw new Error('No se pudo guardar la configuración');
+                }
+            } catch (error) {
+                const errorMessage = `Error al guardar: ${error.message || 'Error desconocido'}`;
+                console.error(errorMessage, error);
+                this.showNotification(errorMessage, 'error', 10000);
+                throw error;
             }
-            
-            console.log('=== FIN save-config ===');
-            return success;
         } catch (error) {
             console.error('Error en saveConfig:', error);
             this.showTemporaryMessage('Error al guardar la configuración: ' + error.message, 'error');
@@ -262,21 +293,41 @@ export class ConfigManager {
         }
     }
 
-    showTemporaryMessage(message, type = 'info') {
-        const statusElement = document.getElementById('status');
-        if (statusElement) {
-            statusElement.textContent = message;
-            statusElement.className = `status ${type}`;
+    // Mostrar notificación al usuario
+    showNotification(message, type = 'info', duration = 5000) {
+        const container = document.getElementById('notification-container');
+        if (!container) return;
+        
+        // Crear elemento de notificación
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.textContent = message;
+        
+        // Agregar la notificación al contenedor
+        container.appendChild(notification);
+        
+        // Forzar reflow para activar la animación
+        void notification.offsetWidth;
+        
+        // Mostrar la notificación
+        notification.classList.add('show');
+        
+        // Configurar tiempo de duración
+        setTimeout(() => {
+            notification.classList.remove('show');
             
-            // Ocultar el mensaje después de 5 segundos
-            if (type !== 'error') {
-                clearTimeout(this.statusTimeout);
-                this.statusTimeout = setTimeout(() => {
-                    statusElement.textContent = '';
-                    statusElement.className = 'status';
-                }, 5000);
-            }
-        }
+            // Eliminar la notificación después de la animación
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        }, duration);
+    }
+    
+    // Mostrar mensaje temporal (compatibilidad hacia atrás)
+    showTemporaryMessage(message, type = 'info') {
+        this.showNotification(message, type, 5000);
     }
 
     showStatus(message, type = 'info') {
