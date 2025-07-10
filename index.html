@@ -45,7 +45,7 @@
             <!-- Sección del Panel Principal -->
             <section id="dashboard-section" class="content-section active">
                 <div class="status" id="status">
-                    Servidor UDP escuchando en el puerto 2233
+                    Servidor UDP esperando datos de <span id="software-name">Log4OM</span> en el puerto <span id="udp-port">2233</span>
                 </div>
                 
                 <div class="dashboard-stats">
@@ -62,7 +62,7 @@
 
             <!-- Sección de Configuración -->
             <section id="settings-section" class="content-section" style="display: none;">
-                <h2>Configuración</h2>
+                  <h2>Configuración</h2>
                 <form id="settingsForm" class="settings">
                     <div class="form-group">
                         <label for="username">Usuario LdA:</label>
@@ -77,7 +77,7 @@
                         <input type="text" id="callsign" name="callsign" placeholder="TU_INDICATIVO" required>
                     </div>
                     <div class="form-group">
-                        <label for="software">Software:</label>
+                        <label for="software">Software desde el que se van a recibir los QSO:</label>
                         <select id="software" name="software" class="form-control">
                             <option value="log4om">Log4OM (predeterminado)</option>
                             <option value="wsjtx">WSJT-X</option>
@@ -142,6 +142,9 @@
         </div>
     </div>
 
+    <!-- Contenedor de notificaciones -->
+    <div id="notification-container" class="notification-container"></div>
+    
     <!-- Cargar scripts como módulos ES -->
     <script type="module" src="src/renderer/js/app.js"></script>
 </body>
