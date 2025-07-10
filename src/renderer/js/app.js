@@ -13,15 +13,26 @@ class App {
     async initialize() {
         this.logger.success('Aplicación iniciada correctamente');
         
+        // Configurar el manejador de cambios en la configuración
+        this.configManager.onConfigChange((config) => {
+            if (config.software) {
+                const port = this.getPortForSoftware(config.software);
+                this.logger.log(`Configuración actualizada: Esperando datos de ${config.software.toUpperCase()} en el puerto ${port}...`);
+                this.updateStatusDisplay(config.software, port);
+            }
+        });
+        
         // Obtener la configuración para mostrar el software y puerto correctos
         try {
             const config = await this.configManager.getConfig();
             const software = config.software || 'log4om';
             const port = this.getPortForSoftware(software);
             this.logger.log(`Esperando datos de ${software.toUpperCase()} en el puerto ${port}...`);
+            this.updateStatusDisplay(software, port);
         } catch (error) {
             console.error('Error al cargar la configuración:', error);
             this.logger.log('Esperando datos en el puerto 2233 (Log4OM)...');
+            this.updateStatusDisplay('log4om', 2233);
         }
         
         // Configurar manejadores de eventos globales
@@ -44,6 +55,32 @@ class App {
             });
         } else {
             console.warn('window.electron.onLog no está disponible');
+        }
+    }
+    
+    // Actualizar la interfaz de usuario con el software y puerto actuales
+    updateStatusDisplay(software, port) {
+        try {
+            // Mapear los códigos de software a nombres legibles
+            const softwareNames = {
+                'log4om': 'Log4OM',
+                'wsjtx': 'WSJT-X',
+                'jtdx': 'JTDX',
+                'n1mm': 'N1MM Logger+'
+            };
+            
+            const softwareName = softwareNames[software] || software;
+            
+            // Actualizar los elementos en la interfaz
+            const softwareElement = document.getElementById('software-name');
+            const portElement = document.getElementById('udp-port');
+            
+            if (softwareElement) softwareElement.textContent = softwareName;
+            if (portElement) portElement.textContent = port;
+            
+            console.log(`Interfaz actualizada: Esperando datos de ${softwareName} en el puerto ${port}`);
+        } catch (error) {
+            console.error('Error al actualizar la interfaz de estado:', error);
         }
     }
     
