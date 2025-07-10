@@ -8,6 +8,17 @@ const config = require('./config');
 // Obtener la ruta del archivo de configuración
 const { CONFIG_FILE } = config;
 
+// Mapeo de software a puertos UDP
+const SOFTWARE_PORTS = {
+    'log4om': 2233,
+    'wsjtx': 2333,
+    'jtdx': 2333,
+    'n1mm': 12060
+};
+
+// Puerto UDP por defecto
+const DEFAULT_UDP_PORT = 2233;
+
 // Mostrar información de depuración
 console.log('Ruta de configuración:', path.join(app.getPath('userData'), 'config.json'));
 
@@ -209,17 +220,36 @@ function setupTrayIcon() {
     }
 }
 
+// Variable para almacenar el puerto actual
+let currentUdpPort = 0;
+
+// Función para obtener el puerto según el software
+function getPortForSoftware(software) {
+    const selectedSoftware = (software || 'log4om').toLowerCase();
+    return SOFTWARE_PORTS[selectedSoftware] || DEFAULT_UDP_PORT;
+}
+
 // Iniciar el servidor UDP
 function startUDPServer() {
     try {
+        // Obtener el puerto según el software actual
+        const newPort = getPortForSoftware(appConfig.software);
+        
+        // Si el puerto no ha cambiado y el servidor ya está corriendo, no hacer nada
+        if (udpServer && currentUdpPort === newPort) {
+            console.log(`[UDP] El servidor ya está escuchando en el puerto ${newPort} (${appConfig.software})`);
+            return true;
+        }
+        
         // Cerrar el servidor anterior si existe
         if (udpServer) {
             try {
+                console.log(`[UDP] Cerrando servidor anterior en el puerto ${currentUdpPort}`);
                 udpServer.close();
+                udpServer = null;
             } catch (e) {
                 console.error('Error al cerrar el servidor anterior:', e);
             }
-            udpServer = null;
         }
 
         // Crear un nuevo servidor UDP
@@ -288,9 +318,17 @@ function startUDPServer() {
             }
         });
 
-        // Iniciar el servidor
-        console.log(`[UDP] Iniciando servidor en el puerto ${PORT}...`);
-        udpServer.bind(PORT, '0.0.0.0'); // Escuchar en todas las interfaces
+                // Iniciar el servidor con el nuevo puerto
+        currentUdpPort = newPort;
+        const selectedSoftware = appConfig.software || 'log4om';
+        const portInfo = `puerto ${currentUdpPort} (${selectedSoftware.toUpperCase()})`;
+        console.log(`[UDP] Iniciando servidor en ${portInfo}...`);
+        udpServer.bind(currentUdpPort, '0.0.0.0'); // Escuchar en todas las interfaces
+        
+        // Mostrar mensaje de confirmación una vez que el servidor está escuchando
+        udpServer.on('listening', () => {
+            console.log(`[UDP] Servidor escuchando en ${portInfo}`);
+        });
         
         return true;
     } catch (error) {
@@ -333,13 +371,53 @@ function initializeConfig() {
     return appConfig;
 }
 
-// Manejadores de eventos para la configuración
+// Variable para el caché de configuración
+let cachedConfig = null;
+
+// Manejador para cargar la configuración
 ipcMain.handle('load-config', async () => {
-    console.log('Solicitada carga de configuración');
-    const loadedConfig = config.getSafeConfig();
-    // Update module-level appConfig when config is loaded
-    appConfig = { ...appConfig, ...loadedConfig };
-    return loadedConfig;
+    try {
+        // Si ya tenemos la configuración en caché, devolverla directamente
+        if (cachedConfig) {
+            console.log('Devolviendo configuración desde caché');
+            return cachedConfig;
+        }
+        
+        console.log('Solicitada carga de configuración');
+        const loadedConfig = config.getSafeConfig();
+        
+        // Asegurarse de que el software tenga un valor por defecto
+        if (!loadedConfig.software) {
+            loadedConfig.software = 'log4om';
+            config.set('software', 'log4om');
+            config.saveConfig({ ...config.getAll(), software: 'log4om' });
+        }
+        
+        // Almacenar en caché
+        cachedConfig = { ...loadedConfig };
+        
+        // Guardar el software anterior para comparación
+        const oldSoftware = appConfig.software;
+        
+        // Actualizar la configuración en memoria
+        appConfig = { ...appConfig, ...loadedConfig };
+        
+        // Si hay un cambio en el software, reiniciar el servidor UDP
+        if (oldSoftware !== loadedConfig.software) {
+            console.log(`Cambio detectado en el software (${oldSoftware || 'ninguno'} -> ${loadedConfig.software}), reiniciando servidor UDP...`);
+            startUDPServer();
+        }
+        
+        console.log('Configuración cargada:', {
+            ...loadedConfig,
+            password: loadedConfig.password ? '********' : undefined
+        });
+        
+        return loadedConfig;
+    } catch (error) {
+        console.error('Error al cargar la configuración:', error);
+        return {};
+    }
 });
 
 // Variable para controlar si ya hay un guardado en proceso
@@ -353,6 +431,9 @@ ipcMain.handle('save-config', async (event, newConfig) => {
         console.log('Ya hay un guardado en proceso, ignorando...');
         return { success: false, error: 'Ya hay un guardado en proceso' };
     }
+    
+    // Invalidar caché de configuración
+    cachedConfig = null;
     
     // Update module-level appConfig when config is saved
     appConfig = { ...appConfig, ...newConfig };
@@ -374,13 +455,29 @@ ipcMain.handle('save-config', async (event, newConfig) => {
         if (!newConfig.callsign) {
             throw new Error('El indicativo es obligatorio');
         }
+        
+        // Asegurarse de que el software tenga un valor por defecto
+        if (!newConfig.software) {
+            newConfig.software = 'log4om';
+        }
 
         // Obtener configuración actual
         const currentConfig = config.getAll();
         
+        // Obtener valores de software actuales y nuevos
+        const oldSoftware = currentConfig.software || 'log4om';
+        const newSoftware = newConfig.software || 'log4om';
+        const softwareChanged = oldSoftware.toLowerCase() !== newSoftware.toLowerCase();
+        
         // Verificar si hay cambios reales
+        const updatedFields = [];
         const hasChanges = Object.keys(newConfig).some(key => {
-            return JSON.stringify(currentConfig[key]) !== JSON.stringify(newConfig[key]);
+            const hasChanged = JSON.stringify(currentConfig[key]) !== JSON.stringify(newConfig[key]);
+            if (hasChanged) {
+                updatedFields.push(key);
+                console.log(`Actualizando ${key}:`, key === 'password' ? '********' : newConfig[key]);
+            }
+            return hasChanged;
         });
         
         if (!hasChanges) {
@@ -394,24 +491,43 @@ ipcMain.handle('save-config', async (event, newConfig) => {
         }
 
         // Actualizar cada valor individualmente
-        const updatedFields = [];
         for (const [key, value] of Object.entries(newConfig)) {
             if (value !== undefined) {
-                console.log(`Actualizando ${key}:`, key === 'password' ? '********' : value);
                 config.set(key, value);
-                updatedFields.push(key);
             }
         }
         
         // Guardar la configuración en disco
         console.log('Guardando configuración en disco...');
         
-        // Obtener la configuración actualizada (usando un nombre diferente para evitar duplicados)
-        const latestConfig = config.getAll();
-        const updatedConfig = { ...latestConfig, ...newConfig };
+        // Crear la configuración actualizada
+        const updatedConfig = { ...currentConfig, ...newConfig };
+        
+        // Debug: Mostrar valores para diagnóstico
+        console.log('Cambio de software detectado:', {
+            oldSoftware,
+            newSoftware,
+            softwareChanged,
+            updatedConfig: { ...updatedConfig, password: '********' }
+        });
+        
+        console.log(`Verificando cambio de software: ${oldSoftware} -> ${newSoftware} (cambiado: ${softwareChanged})`);
         
         // Guardar la configuración completa
         const saved = config.saveConfig(updatedConfig);
+        
+        // Actualizar la configuración en memoria
+        appConfig = { ...appConfig, ...updatedConfig };
+        
+        // Si cambió el software, reiniciar el servidor UDP
+        if (saved && softwareChanged) {
+            console.log(`[UDP] Cambio detectado en el software (${oldSoftware} -> ${newSoftware}), reiniciando servidor UDP...`);
+            await startUDPServer();
+            
+            // Forzar actualización del puerto en la configuración
+            const port = getPortForSoftware(newSoftware);
+            console.log(`[UDP] Servidor configurado para ${newSoftware.toUpperCase()} en puerto ${port}`);
+        }
         
         if (!saved) {
             throw new Error('No se pudo guardar la configuración en disco');
@@ -419,18 +535,15 @@ ipcMain.handle('save-config', async (event, newConfig) => {
         
         console.log('Configuración guardada exitosamente');
         
-        // Devolver una respuesta consistente
-        const safeConfig = config.getSafeConfig();
-        const response = { 
-            success: true, 
-            config: safeConfig,
-            message: 'Configuración guardada correctamente',
-            updatedFields: updatedFields
-        };
-        
+        // Enviar respuesta al renderer
         console.log('Enviando respuesta al renderer');
-        return response;
-        
+        return { 
+            success: true, 
+            config: config.getSafeConfig(),
+            message: 'Configuración guardada correctamente' + (softwareChanged ? ' (servidor UDP reiniciado)' : ''),
+            updatedFields,
+            softwareChanged
+        };
     } catch (error) {
         console.error('ERROR en save-config:', error);
         console.error('Stack:', error.stack);
@@ -606,22 +719,58 @@ function sendToLdA(qso) {
     }
 }
 
-// Configuración de la aplicación
-app.whenReady().then(() => {
-    // Inicializar la ventana principal
-    createWindow();
-    
-    // Inicializar el ícono de la bandeja (solo una vez)
-    setupTrayIcon();
-    
-    // Iniciar el servidor UDP
-    startUDPServer();
-    
-    app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) {
-            createWindow();
+// Variable para almacenar la configuración cargada
+let loadedAppConfig = null;
+
+// Función para cargar la configuración una sola vez
+async function loadAppConfig() {
+    if (!loadedAppConfig) {
+        console.log('Cargando configuración...');
+        loadedAppConfig = await config.getSafeConfig();
+        
+        // Asegurarse de que el software tenga un valor por defecto
+        if (!loadedAppConfig.software) {
+            loadedAppConfig.software = 'log4om';
+            config.set('software', 'log4om');
+            await config.saveConfig({ ...loadedAppConfig, software: 'log4om' });
         }
-    });
+        
+        console.log('Configuración cargada:', {
+            ...loadedAppConfig,
+            password: '********'
+        });
+    }
+    return loadedAppConfig;
+}
+
+// Configuración de la aplicación
+app.whenReady().then(async () => {
+    try {
+        // Cargar configuración una sola vez
+        const loadedConfig = await loadAppConfig();
+        appConfig = { ...appConfig, ...loadedConfig };
+        
+        // Inicializar la ventana principal
+        createWindow();
+        
+        // Inicializar el ícono de la bandeja (solo una vez)
+        setupTrayIcon();
+        
+        // Iniciar el servidor UDP con la configuración cargada
+        startUDPServer();
+        
+        app.on('activate', () => {
+            if (BrowserWindow.getAllWindows().length === 0) {
+                createWindow();
+            }
+        });
+    } catch (error) {
+        console.error('Error al cargar la configuración al inicio:', error);
+        // Iniciar de todos modos con valores por defecto
+        createWindow();
+        setupTrayIcon();
+        startUDPServer();
+    }
 });
 
 app.on('window-all-closed', () => {
