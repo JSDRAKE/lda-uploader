@@ -94,10 +94,8 @@ function createWindow() {
     
     // Crear la ventana del navegador
     mainWindow = new BrowserWindow({
-        width: config.windowBounds?.width || 800,
-        height: config.windowBounds?.height || 600,
-        x: config.windowBounds?.x,
-        y: config.windowBounds?.y,
+        width: 800,
+        height: 600,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
@@ -355,7 +353,6 @@ function initializeConfig() {
             username: '',
             password: '',
             callsign: '',
-            windowBounds: { width: 800, height: 600 },
             lastState: {}
         };
         
