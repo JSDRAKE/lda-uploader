@@ -2,7 +2,7 @@ export class ConfigManager {
     constructor() {
         this.form = document.getElementById('settingsForm') || document.createElement('form');
         // Campos del formulario que se envían al guardar
-        this.fields = ['username', 'password', 'callsign'];
+        this.fields = ['username', 'password', 'callsign', 'software'];
         // Campos de configuración adicionales (checkboxes)
         this.configFields = ['startMinimized', 'startInTray', 'sidebarCollapsed'];
         this.isSaving = false;
@@ -73,20 +73,63 @@ export class ConfigManager {
         }
     }
 
+    // Cache para la configuración
+    _configCache = null;
+    _configLoadPromise = null;
+
+    // Cargar configuración desde el main process
+    async _loadConfigInternal() {
+        if (this._configLoadPromise) {
+            return this._configLoadPromise;
+        }
+
+        this._configLoadPromise = (async () => {
+            try {
+                const config = await window.electron.loadConfig();
+                if (config) {
+                    this._configCache = { ...config };
+                    console.log('Configuración cargada en el renderer');
+                }
+                return this._configCache || {};
+            } catch (error) {
+                console.error('Error al cargar la configuración:', error);
+                return {};
+            } finally {
+                this._configLoadPromise = null;
+            }
+        })();
+
+        return this._configLoadPromise;
+    }
+
+    // Invalidar caché de configuración
+    invalidateConfigCache() {
+        this._configCache = null;
+    }
+
     async loadConfig() {
         try {
-            const config = await window.electron.loadConfig();
-            if (config) {
-                console.log('Loading config:', JSON.stringify(config, null, 2));
-                
+            // Usar caché si está disponible
+            if (this._configCache) {
+                return this._configCache;
+            }
+
+            const config = await this._loadConfigInternal();
+            
+            // Actualizar la UI solo si estamos en el contexto del navegador
+            if (typeof document !== 'undefined') {
                 // Cargar campos del formulario
                 this.fields.forEach(field => {
                     const input = document.getElementById(field);
                     if (input) {
-                        input.value = config[field] || '';
-                        // Ocultar contraseñas reales
                         if (field === 'password' && config[field]) {
+                            // Ocultar contraseñas reales
                             input.value = '********';
+                        } else if (field === 'software') {
+                            // Establecer el valor seleccionado en el dropdown
+                            input.value = config[field] || 'log4om';
+                        } else {
+                            input.value = config[field] || '';
                         }
                     }
                 });
@@ -202,9 +245,14 @@ export class ConfigManager {
             
             // Restaurar el botón de guardado
             const saveButton = document.getElementById('saveSettings');
-            const buttonText = saveButton?.querySelector('.btn-text');
-            const buttonLoading = saveButton?.querySelector('.btn-loading');
-            const originalText = buttonText?.textContent || 'Guardar';
+            if (saveButton) {
+                saveButton.disabled = false;
+                const buttonText = saveButton.querySelector('.btn-text');
+                const buttonLoading = saveButton.querySelector('.btn-loading');
+                
+                if (buttonText) buttonText.textContent = 'Guardar';
+                if (buttonLoading) buttonLoading.style.display = 'none';
+            }
             
             if (saveButton) {
                 saveButton.disabled = false;
