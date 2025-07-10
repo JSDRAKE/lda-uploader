@@ -2,6 +2,16 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // Exponer métodos seguros al renderer
 contextBridge.exposeInMainWorld('electron', {
+    // Para abrir enlaces externos en el navegador predeterminado
+    openExternal: (url) => {
+        if (typeof url !== 'string' || !url.startsWith('http')) {
+            console.error('URL inválida:', url);
+            return Promise.reject(new Error('URL inválida'));
+        }
+        return ipcRenderer.invoke('open-external', url);
+    },
+    
+    // Métodos existentes
     // Para recibir logs del proceso principal
     onLog: (callback) => {
         // Verificar que el callback sea una función
