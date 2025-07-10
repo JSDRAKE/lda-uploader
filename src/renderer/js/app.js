@@ -6,6 +6,7 @@ class App {
         this.logger = new Logger('log');
         this.configManager = new ConfigManager();
         this.sidebarCollapsed = false;
+        this.setupExternalLinks();
         this.initialize();
     }
 
@@ -242,6 +243,24 @@ class App {
         } catch (error) {
             console.error('Error al cargar el estado del menú:', error);
         }
+    }
+
+    // Configurar manejadores para enlaces externos
+    setupExternalLinks() {
+        document.addEventListener('click', (event) => {
+            // Verificar si el clic fue en un enlace externo
+            const link = event.target.closest('.external-link');
+            if (link && link.dataset.url) {
+                event.preventDefault();
+                if (window.electron && typeof window.electron.openExternal === 'function') {
+                    window.electron.openExternal(link.dataset.url);
+                } else {
+                    // Fallback para desarrollo o si la API no está disponible
+                    console.log('Abrir enlace externo:', link.dataset.url);
+                    window.open(link.dataset.url, '_blank');
+                }
+            }
+        });
     }
 
     // Cargar la sección seleccionada
