@@ -9,7 +9,6 @@ const defaultConfig = {
   callsign: '',
   startMinimized: false,  // Mantener compatibilidad
   startInTray: true,      // Nueva opción para iniciar en la bandeja
-  windowBounds: { width: 800, height: 600 },
   lastState: {}
 };
 
