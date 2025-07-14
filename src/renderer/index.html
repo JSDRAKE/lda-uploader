@@ -2,14 +2,159 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data: https:;"
+    />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LdA Uploader</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+      integrity="sha512-Fo3rlrZj/k7ujTnHg4CGR2D7kSs0v4LLanw2qksYuRlEzO+tcaEPQogQ0KaoGN26/zrn20ImR1DfuLWnOo7aBA=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
     <link rel="stylesheet" href="./styles/index.css" />
   </head>
   <body>
-    <div class="container">
-      <h1>LdA Uploader</h1>
-      <p>¡Bienvenido a la aplicación de carga de QSO a LdA!</p>
+    <div id="app">
+      <div class="app-container">
+      <!-- Sidebar -->
+      <nav class="sidebar">
+        <div class="sidebar-header">
+          <h2>Menú</h2>
+          <button class="toggle-btn" id="toggleSidebar">
+            <i class="fas fa-bars"></i>
+          </button>
+        </div>
+        <ul class="sidebar-menu">
+          <li class="menu-item active">
+            <a href="#" data-section="inicio">
+              <i class="fas fa-home"></i>
+              <span>Principal</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="#" data-section="subir">
+              <i class="fas fa-upload"></i>
+              <span>Subir ADIF</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="#" data-section="configuracion">
+              <i class="fas fa-cog"></i>
+              <span>Configuración</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="#" data-section="acerca">
+              <i class="fas fa-info-circle"></i>
+              <span>Acerca de</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+
+      <!-- Main Content -->
+      <main class="main-content">
+        <div class="content-header">
+          <h1>Bienvenido a LdA Uploader</h1>
+        </div>
+        <div class="content-body" id="content">
+          <!-- El contenido dinámico se cargará aquí -->
+          <section id="inicio" class="section active">
+            <h2>Página Principal</h2>
+            <p>Selecciona una opción del menú para comenzar.</p>
+          </section>
+
+          <section id="subir" class="section">
+            <h2>Subir Archivo ADIF</h2>
+            <div class="upload-container">
+              <div class="upload-area" id="dropZone">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <p>Arrastra tu archivo ADIF aquí o haz clic para seleccionar</p>
+                <input type="file" id="fileInput" accept=".adi,.adif" style="display: none" />
+              </div>
+              <div class="file-info" id="fileInfo"></div>
+            </div>
+          </section>
+
+          <section id="configuracion" class="section">
+            <h2>Configuración</h2>
+            <div class="settings-container">
+              <form id="configForm" class="settings-form">
+                <div class="form-group">
+                  <label for="username">Usuario</label>
+                  <input 
+                    type="text" 
+                    id="username" 
+                    name="username" 
+                    placeholder="Ingresa tu usuario" 
+                    required 
+                  />
+                </div>
+                
+                <div class="form-group">
+                  <label for="password">Contraseña</label>
+                  <div class="password-input">
+                    <input 
+                      type="password" 
+                      id="password" 
+                      name="password" 
+                      placeholder="Ingresa tu contraseña" 
+                      required 
+                    />
+                    <button type="button" class="toggle-password" aria-label="Mostrar/ocultar contraseña">
+                      <i class="fas fa-eye"></i>
+                    </button>
+                  </div>
+                </div>
+                
+                <div class="form-group">
+                  <label for="mainCallSign">Señal Distintiva Principal</label>
+                  <input 
+                    type="text" 
+                    id="mainCallSign" 
+                    name="mainCallSign" 
+                    placeholder="Ej: LU1ABC" 
+                    required 
+                    pattern="[A-Za-z0-9]{3,15}"
+                    title="Ingrese un indicativo válido (3-15 caracteres alfanuméricos)"
+                  />
+                </div>
+                
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Guardar Configuración
+                  </button>
+                  <button type="reset" class="btn btn-secondary">
+                    <i class="fas fa-undo"></i> Restablecer
+                  </button>
+                </div>
+              </form>
+            </div>
+          </section>
+
+          <section id="acerca" class="section">
+            <h2>Acerca de LdA Uploader</h2>
+            <div class="about-container">
+              <div class="app-logo">
+                <i class="fas fa-satellite-dish"></i>
+              </div>
+              <div class="app-info">
+                <h3>Versión 1.0.0</h3>
+                <p>Aplicación para subir automáticamente QSO a LdA</p>
+                <p>Desarrollado por JSDRAKE - LU9WT</p>
+                <p>© 2025 Todos los derechos reservados</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
     </div>
+
+    <script src="../preload/preload.js"></script>
+    <script src="./js/main.js" type="module"></script>
   </body>
 </html>

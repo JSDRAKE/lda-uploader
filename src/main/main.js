@@ -10,8 +10,9 @@ function createWindow() {
   const isDev = process.argv.includes('--dev');
   
   mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 1200,
+    height: 800,
+    show: false, // No mostrar la ventana hasta que esté lista
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -24,17 +25,29 @@ function createWindow() {
       nodeIntegrationInWorker: false,
       nodeIntegrationInSubFrames: false,
       enableRemoteModule: false,
-      spellcheck: false
+      spellcheck: false,
+      nativeWindowOpen: true,
+      // Configuración adicional de seguridad
+      safeDialogs: true,
+      disableBlinkFeatures: 'Auxclick',
+      enableWebSQL: false,
+      autoplayPolicy: 'document-user-activation',
+      disableHtmlFullscreenWindowResize: true
     },
   });
   
-  // Configurar CSP más estricto
+  // Mostrar la ventana cuando esté lista
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+  });
+  
+  // Configurar CSP para permitir recursos necesarios
   const csp = [
     "default-src 'self'",
     "script-src 'self'",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data:",
-    "font-src 'self'",
+    `style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com`,
+    "img-src 'self' data: https://cdnjs.cloudflare.com",
+    "font-src 'self' https://cdnjs.cloudflare.com",
     "connect-src 'self'"
   ].join('; ');
 
