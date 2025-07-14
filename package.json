@@ -1,0 +1,23 @@
+{
+  "name": "lda-uploader",
+  "displayName": "LdA Uploader",
+  "description": "Aplicación para subir automáticamente QSO a LdA",
+  "version": "1.0.0-beta",
+  "main": "src/main/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md,html,css,scss}\"",
+    "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,md,html,css,scss}\""
+  },
+  "keywords": [],
+  "author": "JSDRAKE - LU9WT",
+  "homepage": "https://lu9wt.jsdrake.com.ar",
+  "email": "lu9wt@jsdrake.com.ar",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^37.2.1",
+    "prettier": "^3.6.2"
+  }
+}
