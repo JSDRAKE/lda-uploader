@@ -1,6 +1,8 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs/promises';
+import { existsSync, mkdirSync } from 'fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -89,6 +91,44 @@ function createWindow() {
     mainWindow = null;
   });
 }
+
+// Configuración de rutas
+const userDataPath = app.getPath('userData');
+const configDir = path.join(userDataPath, 'config');
+const configPath = path.join(configDir, 'config.json');
+
+// Asegurarse de que el directorio de configuración exista
+if (!existsSync(configDir)) {
+  mkdirSync(configDir, { recursive: true });
+}
+
+// Manejadores de IPC para la configuración
+ipcMain.handle('config:save', async (event, config) => {
+  try {
+    await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf8');
+    return { success: true };
+  } catch (error) {
+    console.error('Error al guardar la configuración:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('config:load', async () => {
+  try {
+    if (!existsSync(configPath)) {
+      return null;
+    }
+    const data = await fs.readFile(configPath, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Error al cargar la configuración:', error);
+    throw error;
+  }
+});
+
+ipcMain.on('config:getPath', (event) => {
+  event.returnValue = configPath;
+});
 
 app.whenReady().then(createWindow);
 
