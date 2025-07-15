@@ -313,6 +313,15 @@ function clearInfo() {
   const applyBtn = document.getElementById('applyBtn');
   const clearInfoBtn = document.getElementById('clearInfo');
 
+  // Limpiar información cuando cambie de sección
+  menuItems.forEach(item => {
+    item.addEventListener('click', () => {
+      if (!item.closest('.section').classList.contains('active')) {
+        clearInfo();
+      }
+    });
+  });
+
   updateBtn.addEventListener('click', async () => {
   try {
     await loadIndicativos();
