@@ -174,8 +174,11 @@ document.addEventListener('DOMContentLoaded', () => {
     return isValid;
   }
 
+  // Obtener la ruta del archivo de configuración
+  const configPath = window.electron.getConfigPath();
+  
   // Guardar configuración
-  function saveSettings(event) {
+  async function saveSettings(event) {
     event.preventDefault();
     
     // Validar el formulario
@@ -200,8 +203,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     try {
-      // Guardar en localStorage (en una aplicación real, esto se enviaría a un servidor seguro)
-      localStorage.setItem('appSettings', JSON.stringify(settings));
+      // Guardar en archivo
+      await window.electron.saveConfig(settings);
       
       // Mostrar notificación de éxito
       showNotification('Configuración guardada correctamente', 'success');
@@ -211,17 +214,16 @@ document.addEventListener('DOMContentLoaded', () => {
       
     } catch (error) {
       console.error('Error al guardar la configuración:', error);
-      showNotification('Error al guardar la configuración', 'error');
+      showNotification('Error al guardar la configuración: ' + error.message, 'error');
     }
   }
   
   // Cargar configuración guardada
-  function loadSettings() {
+  async function loadSettings() {
     try {
-      const savedSettings = localStorage.getItem('appSettings');
+      const settings = await window.electron.loadConfig();
       
-      if (savedSettings) {
-        const settings = JSON.parse(savedSettings);
+      if (settings) {
         usernameInput.value = settings.username || '';
         passwordInput.value = settings.password || '';
         mainCallSignInput.value = settings.mainCallSign || '';
@@ -233,7 +235,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     } catch (error) {
-      console.error('Error al cargar la configuración:', error);
+      if (error.code !== 'ENOENT') { // Ignorar si el archivo no existe
+        console.error('Error al cargar la configuración:', error);
+        showNotification('Error al cargar la configuración: ' + error.message, 'error');
+      }
     }
   }
   
