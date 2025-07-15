@@ -126,9 +126,62 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Validar formato de correo electrónico
+  function isValidEmail(email) {
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    return emailRegex.test(String(email).toLowerCase());
+  }
+
+  // Validar contraseña
+  function isValidPassword(password) {
+    return password.length >= 8;
+  }
+  
+  // Validar Señal Distintiva Principal
+  function isValidCallSign(callSign) {
+    const callSignRegex = /^[A-Z0-9/]+$/;
+    return callSignRegex.test(callSign);
+  }
+
+  // Validar formato de señal distintiva y alias (solo letras, números y /)
+  function isValidCallSign(callSign) {
+    return /^[A-Z0-9/]+$/.test(callSign);
+  }
+
+  // Validar formulario completo
+  function validateForm() {
+    let isValid = true;
+    
+    // Validar correo electrónico
+    if (!isValidEmail(usernameInput.value)) {
+      showNotification('Por favor ingresa un correo electrónico válido', 'error');
+      usernameInput.focus();
+      isValid = false;
+    }
+    // Validar contraseña
+    else if (!isValidPassword(passwordInput.value)) {
+      showNotification('La contraseña debe tener al menos 8 caracteres', 'error');
+      passwordInput.focus();
+      isValid = false;
+    }
+    // Validar señal distintiva
+    else if (!isValidCallSign(mainCallSignInput.value)) {
+      showNotification('La Señal Distintiva solo puede contener letras mayúsculas, números y /', 'error');
+      mainCallSignInput.focus();
+      isValid = false;
+    }
+    
+    return isValid;
+  }
+
   // Guardar configuración
   function saveSettings(event) {
     event.preventDefault();
+    
+    // Validar el formulario
+    if (!validateForm()) {
+      return;
+    }
     
     if (!configForm.checkValidity()) {
       // Mostrar mensajes de validación si el formulario no es válido
@@ -142,6 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // En una aplicación real, la contraseña debería ser hasheada antes de guardarse
       password: passwordInput.value,
       mainCallSign: mainCallSignInput.value.toUpperCase(),
+      aliases: [...aliases], // Guardar la lista de alias
       lastUpdated: new Date().toISOString()
     };
     
@@ -171,34 +225,258 @@ document.addEventListener('DOMContentLoaded', () => {
         usernameInput.value = settings.username || '';
         passwordInput.value = settings.password || '';
         mainCallSignInput.value = settings.mainCallSign || '';
+        
+        // Cargar alias si existen
+        if (settings.aliases && Array.isArray(settings.aliases)) {
+          aliases = [...settings.aliases];
+          renderAliases();
+        }
       }
     } catch (error) {
       console.error('Error al cargar la configuración:', error);
     }
   }
   
-  // Mostrar notificación
+  // Mostrar notificación mejorada
   function showNotification(message, type = 'info') {
+    // Crear contenedor de notificaciones si no existe
+    let container = document.querySelector('.notification-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.className = 'notification-container';
+      document.body.appendChild(container);
+    }
+
+    // Crear elemento de notificación
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
-    notification.textContent = message;
     
-    document.body.appendChild(notification);
+    // Ícono según el tipo de notificación
+    let icon = '';
+    switch(type) {
+      case 'success':
+        icon = '✓';
+        break;
+      case 'error':
+        icon = '✕';
+        break;
+      case 'warning':
+        icon = '⚠';
+        break;
+      default:
+        icon = 'ℹ';
+    }
     
-    // Mostrar notificación
-    setTimeout(() => {
-      notification.classList.add('show');
-    }, 10);
+    // Estructura de la notificación
+    notification.innerHTML = `
+      <span class="notification-icon">${icon}</span>
+      <span class="notification-message">${message}</span>
+      <button class="notification-close" aria-label="Cerrar notificación">×</button>
+    `;
     
-    // Ocultar y eliminar después de 5 segundos
-    setTimeout(() => {
-      notification.classList.remove('show');
-      setTimeout(() => notification.remove(), 300);
+    // Agregar al contenedor
+    container.appendChild(notification);
+    
+    // Forzar reflow para la animación
+    void notification.offsetWidth;
+    
+    // Mostrar notificación con animación
+    notification.classList.add('show');
+    
+    // Configurar cierre al hacer clic en el botón
+    const closeBtn = notification.querySelector('.notification-close');
+    closeBtn.addEventListener('click', () => {
+      closeNotification(notification);
+    });
+    
+    // Cerrar automáticamente después de 5 segundos
+    const autoClose = setTimeout(() => {
+      closeNotification(notification);
     }, 5000);
+    
+    // Pausar el cierre automático al hacer hover
+    notification.addEventListener('mouseenter', () => {
+      clearTimeout(autoClose);
+    });
+    
+    // Reanudar el cierre automático al salir del hover
+    notification.addEventListener('mouseleave', () => {
+      setTimeout(() => closeNotification(notification), 1000);
+    });
+    
+    // Función para cerrar la notificación con animación
+    function closeNotification(element) {
+      if (!element) return;
+      element.classList.remove('show');
+      setTimeout(() => {
+        if (element && element.parentNode) {
+          element.remove();
+          // Eliminar el contenedor si no hay más notificaciones
+          if (container && container.children.length === 0) {
+            container.remove();
+          }
+        }
+      }, 300);
+    }
   }
   
   // Inicializar el toggle de la contraseña
   setupPasswordToggle();
+  
+  // Configurar conversión a mayúsculas en tiempo real
+  function setupUppercaseInputs() {
+    const uppercaseInputs = document.querySelectorAll('.uppercase-input');
+    
+    uppercaseInputs.forEach(input => {
+      input.addEventListener('input', (e) => {
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        input.value = input.value.toUpperCase();
+        input.setSelectionRange(start, end);
+      });
+    });
+  }
+  
+  // Inicializar la gestión de alias
+  const aliasInput = document.getElementById('aliasInput');
+  const addAliasBtn = document.getElementById('addAliasBtn');
+  const aliasList = document.getElementById('aliasList');
+  let aliases = [];
+  
+  // Cargar alias guardados
+  function loadAliases() {
+    const savedSettings = localStorage.getItem('appSettings');
+    if (savedSettings) {
+      const settings = JSON.parse(savedSettings);
+      if (settings.aliases && Array.isArray(settings.aliases)) {
+        aliases = settings.aliases;
+        renderAliases();
+      }
+    }
+  }
+  
+  // Guardar alias
+  function saveAliases() {
+    try {
+      const savedSettings = localStorage.getItem('appSettings') || '{}';
+      const settings = JSON.parse(savedSettings);
+      settings.aliases = aliases;
+      localStorage.setItem('appSettings', JSON.stringify(settings));
+    } catch (error) {
+      console.error('Error al guardar los alias:', error);
+    }
+  }
+  
+  // Renderizar la lista de alias
+  function renderAliases() {
+    aliasList.innerHTML = '';
+    aliases.forEach((alias, index) => {
+      const aliasElement = document.createElement('div');
+      aliasElement.className = 'alias-tag';
+      aliasElement.innerHTML = `
+        <span>${alias}</span>
+        <button type="button" class="remove-alias" data-index="${index}" aria-label="Eliminar alias">
+          <i class="fas fa-times"></i>
+        </button>
+      `;
+      aliasList.appendChild(aliasElement);
+    });
+    
+    // Agregar event listeners a los botones de eliminar
+    document.querySelectorAll('.remove-alias').forEach(button => {
+      button.addEventListener('click', (e) => {
+        const index = parseInt(e.currentTarget.getAttribute('data-index'));
+        aliases.splice(index, 1);
+        saveAliases();
+        renderAliases();
+        showNotification('Alias eliminado correctamente', 'success');
+      });
+    });
+  }
+  
+  // Agregar un nuevo alias
+  function addAlias() {
+    const alias = aliasInput.value.trim().toUpperCase();
+    
+    if (!alias) {
+      showNotification('Por favor ingresa un alias', 'error');
+      return;
+    }
+    
+    if (aliases.includes(alias)) {
+      showNotification('Este alias ya existe', 'warning');
+      return;
+    }
+    
+    // Validar formato del alias (solo letras, números y /)
+    if (!isValidCallSign(alias)) {
+      showNotification('Solo se permiten letras, números y /', 'error');
+      return;
+    }
+    
+    aliases.push(alias);
+    saveAliases();
+    renderAliases();
+    aliasInput.value = '';
+    showNotification('Alias agregado correctamente', 'success');
+  }
+  
+  // Event listeners para agregar alias
+  addAliasBtn.addEventListener('click', addAlias);
+  aliasInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addAlias();
+    }
+  });
+  
+  // Cargar alias al iniciar
+  loadAliases();
+  
+  // Configurar validación en tiempo real para los campos
+  function setupInputValidation() {
+    // Manejador para prevenir caracteres no permitidos
+    const preventInvalidChars = (e) => {
+      // Permitir teclas de control (borrar, tab, etc.)
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      
+      // Obtener el carácter presionado
+      const char = String.fromCharCode(e.which || e.keyCode);
+      
+      // Expresión regular para validar caracteres permitidos
+      const allowedChars = /^[A-Za-z0-9/]$/;
+      
+      // Si el carácter no está permitido, prevenir la acción por defecto
+      if (!allowedChars.test(char)) {
+        e.preventDefault();
+        showNotification('Solo se permiten letras, números y /', 'error');
+      }
+    };
+
+    // Aplicar a los campos correspondientes
+    const restrictedInputs = [mainCallSignInput, aliasInput];
+    restrictedInputs.forEach(input => {
+      if (input) {
+        input.addEventListener('keypress', preventInvalidChars);
+      }
+    });
+  }
+
+  // Configurar inputs de mayúsculas y validación
+  setupUppercaseInputs();
+  setupInputValidation();
+  
+  // Manejar el evento reset del formulario para limpiar los alias
+  configForm.addEventListener('reset', (e) => {
+    // Limpiar la lista de alias en el almacenamiento local
+    localStorage.removeItem('aliases');
+    // Limpiar la lista de alias en la interfaz de usuario
+    aliasList.innerHTML = '';
+    // Limpiar el array de alias
+    aliases = [];
+    // Mostrar notificación
+    showNotification('Configuración restablecida', 'info');
+  });
 
   // Event Listeners
   toggleBtn.addEventListener('click', toggleSidebar);
