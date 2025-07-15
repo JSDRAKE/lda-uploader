@@ -91,11 +91,22 @@
               </div>
             </div>
           </section>
-          <!-- El contenido dinámico se cargará aquí -->
-          <section id="inicio" class="section active">
-            <h2>Página Principal</h2>
-            <p>Selecciona una opción del menú para comenzar.</p>
-          </section>
+          <div class="info-container">
+            <div class="info-header">
+              <div class="info-title">
+                <i class="fas fa-terminal"></i>
+                <span>Información del Sistema</span>
+              </div>
+              <div class="info-controls">
+                <button class="btn btn-sm btn-secondary" id="clearInfo">
+                  <i class="fas fa-broom"></i> Limpiar
+                </button>
+              </div>
+            </div>
+            <div class="info-content" id="infoContent">
+              <!-- Las entradas de información se agregarán dinámicamente -->
+            </div>
+          </div>
 
           <section id="subir" class="section">
             <h2>Subir Archivo ADIF</h2>

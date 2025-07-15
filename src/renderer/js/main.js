@@ -1,4 +1,9 @@
 document.addEventListener('DOMContentLoaded', async () => {
+  // Añadir información inicial al cargar la página
+  addInfoEntry('LdA Uploader iniciado', 'info');
+  addInfoEntry('Versión: 1.0.0', 'info');
+  addInfoEntry('Estado: Listo para operar', 'success');
+
   // Elementos del DOM
   const toggleBtn = document.getElementById('toggleSidebar');
   const sidebar = document.querySelector('.sidebar');
@@ -285,19 +290,40 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Cargar los indicativos al inicio
   loadIndicativos();
 
+  // Funciones para mostrar información en el área de información
+function addInfoEntry(message, type = 'info') {
+  const infoContent = document.getElementById('infoContent');
+  const entry = document.createElement('div');
+  entry.className = `info-entry ${type}`;
+  entry.setAttribute('data-type', type.toUpperCase());
+  entry.textContent = message;
+  infoContent.appendChild(entry);
+  
+  // Desplazar automáticamente al final
+  infoContent.scrollTop = infoContent.scrollHeight;
+}
+
+function clearInfo() {
+  const infoContent = document.getElementById('infoContent');
+  infoContent.innerHTML = '';
+}
+
   // Event listeners para los botones
   const updateBtn = document.getElementById('updateBtn');
   const applyBtn = document.getElementById('applyBtn');
+  const clearInfoBtn = document.getElementById('clearInfo');
 
   updateBtn.addEventListener('click', async () => {
-    try {
-      await loadIndicativos();
-      showNotification('Indicativos actualizados correctamente', 'success');
-    } catch (error) {
-      console.error('Error al actualizar los indicativos:', error);
-      showNotification('Error al actualizar los indicativos', 'error');
-    }
-  });
+  try {
+    await loadIndicativos();
+    addInfoEntry('Indicativos actualizados correctamente', 'success');
+    showNotification('Indicativos actualizados correctamente', 'success');
+  } catch (error) {
+    console.error('Error al actualizar los indicativos:', error);
+    addInfoEntry('Error al actualizar los indicativos', 'error');
+    showNotification('Error al actualizar los indicativos', 'error');
+  }
+});
 
   applyBtn.addEventListener('click', async () => {
     try {
@@ -308,12 +334,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Por ejemplo, podríamos guardar estos valores en el estado de la aplicación
       // o realizar alguna acción con ellos
       
+      addInfoEntry('Configuración aplicada correctamente', 'success');
       showNotification('Configuración aplicada correctamente', 'success');
     } catch (error) {
       console.error('Error al aplicar la configuración:', error);
+      addInfoEntry('Error al aplicar la configuración', 'error');
       showNotification('Error al aplicar la configuración', 'error');
     }
   });
+
+  // Event listener para el botón de limpiar información
+clearInfoBtn.addEventListener('click', () => {
+  clearInfo();
+  showNotification('Información limpiada', 'info');
+});
 
   // Mostrar notificación mejorada
   function showNotification(message, type = 'info') {
