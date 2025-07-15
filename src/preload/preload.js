@@ -38,6 +38,19 @@ if (isNode) {
   // Exponer API segura al renderer
   try {
     contextBridge.exposeInMainWorld('electron', {
+      // Operaciones de configuración
+      saveConfig: async (config) => {
+        return await ipcRenderer.invoke('config:save', config);
+      },
+      
+      loadConfig: async () => {
+        return await ipcRenderer.invoke('config:load');
+      },
+      
+      getConfigPath: () => {
+        return ipcRenderer.sendSync('config:getPath');
+      },
+      
       // Enviar mensajes al proceso principal
       send: (channel, data) => {
         if (isValidChannel('SEND', channel)) {
