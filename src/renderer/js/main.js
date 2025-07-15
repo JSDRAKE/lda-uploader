@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   // Elementos del DOM
   const toggleBtn = document.getElementById('toggleSidebar');
   const sidebar = document.querySelector('.sidebar');
@@ -9,12 +9,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const fileInput = document.getElementById('fileInput');
   const fileInfo = document.getElementById('fileInfo');
   const configForm = document.getElementById('configForm');
-  
-  // Elementos del formulario de configuración
   const usernameInput = document.getElementById('username');
   const passwordInput = document.getElementById('password');
   const mainCallSignInput = document.getElementById('mainCallSign');
   const togglePasswordBtn = document.querySelector('.toggle-password');
+  const aliasInput = document.getElementById('aliasInput');
+  const addAliasBtn = document.getElementById('addAliasBtn');
+  const aliasList = document.getElementById('aliasList');
+  const indicativoSelect = document.getElementById('indicativo');
+  const softwareSelect = document.getElementById('software');
 
   // Cargar estado inicial del sidebar
   const loadSidebarState = () => {
@@ -242,6 +245,76 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   
+  // Cargar configuración al inicio
+  async function loadIndicativos() {
+    try {
+      const settings = await window.electron.loadConfig();
+      if (settings) {
+        // Limpiar el selector
+        indicativoSelect.innerHTML = '';
+        
+        // Agregar la señal principal
+        if (settings.mainCallSign) {
+          const option = document.createElement('option');
+          option.value = settings.mainCallSign;
+          option.textContent = settings.mainCallSign;
+          indicativoSelect.appendChild(option);
+        }
+        
+        // Agregar los alias
+        if (settings.aliases && settings.aliases.length > 0) {
+          settings.aliases.forEach(alias => {
+            const option = document.createElement('option');
+            option.value = alias;
+            option.textContent = alias;
+            indicativoSelect.appendChild(option);
+          });
+        }
+        
+        // Seleccionar el primer indicativo por defecto
+        if (indicativoSelect.options.length > 0) {
+          indicativoSelect.selectedIndex = 0;
+        }
+      }
+    } catch (error) {
+      console.error('Error al cargar los indicativos:', error);
+      showNotification('Error al cargar los indicativos', 'error');
+    }
+  }
+  
+  // Cargar los indicativos al inicio
+  loadIndicativos();
+
+  // Event listeners para los botones
+  const updateBtn = document.getElementById('updateBtn');
+  const applyBtn = document.getElementById('applyBtn');
+
+  updateBtn.addEventListener('click', async () => {
+    try {
+      await loadIndicativos();
+      showNotification('Indicativos actualizados correctamente', 'success');
+    } catch (error) {
+      console.error('Error al actualizar los indicativos:', error);
+      showNotification('Error al actualizar los indicativos', 'error');
+    }
+  });
+
+  applyBtn.addEventListener('click', async () => {
+    try {
+      const indicativo = indicativoSelect.value;
+      const software = softwareSelect.value;
+      
+      // Aquí iría la lógica para aplicar los cambios
+      // Por ejemplo, podríamos guardar estos valores en el estado de la aplicación
+      // o realizar alguna acción con ellos
+      
+      showNotification('Configuración aplicada correctamente', 'success');
+    } catch (error) {
+      console.error('Error al aplicar la configuración:', error);
+      showNotification('Error al aplicar la configuración', 'error');
+    }
+  });
+
   // Mostrar notificación mejorada
   function showNotification(message, type = 'info') {
     // Crear contenedor de notificaciones si no existe
@@ -343,30 +416,27 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   // Inicializar la gestión de alias
-  const aliasInput = document.getElementById('aliasInput');
-  const addAliasBtn = document.getElementById('addAliasBtn');
-  const aliasList = document.getElementById('aliasList');
   let aliases = [];
   
   // Cargar alias guardados
-  function loadAliases() {
-    const savedSettings = localStorage.getItem('appSettings');
-    if (savedSettings) {
-      const settings = JSON.parse(savedSettings);
-      if (settings.aliases && Array.isArray(settings.aliases)) {
-        aliases = settings.aliases;
+  async function loadAliases() {
+    try {
+      const settings = await window.electron.loadConfig();
+      if (settings && settings.aliases && Array.isArray(settings.aliases)) {
+        aliases = [...settings.aliases];
         renderAliases();
       }
+    } catch (error) {
+      console.error('Error al cargar los alias:', error);
     }
   }
   
   // Guardar alias
-  function saveAliases() {
+  async function saveAliases() {
     try {
-      const savedSettings = localStorage.getItem('appSettings') || '{}';
-      const settings = JSON.parse(savedSettings);
-      settings.aliases = aliases;
-      localStorage.setItem('appSettings', JSON.stringify(settings));
+      const settings = await window.electron.loadConfig();
+      settings.aliases = [...aliases];
+      await window.electron.saveConfig(settings);
     } catch (error) {
       console.error('Error al guardar los alias:', error);
     }

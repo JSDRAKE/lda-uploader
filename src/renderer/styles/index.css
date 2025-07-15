@@ -32,6 +32,111 @@
   box-sizing: border-box;
 }
 
+/* Estilos para los selectores */
+.selectors-container {
+  display: flex;
+  gap: 2rem;
+  margin: 2rem 0;
+  padding: 2rem;
+  background: var(--primary-dark);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-md);
+  align-items: flex-start;
+}
+
+/* Estilos para form groups y controles */
+.form-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--text-light);
+  font-weight: 600;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background: var(--secondary-color);
+  color: var(--text-color);
+  font-size: 1rem;
+  transition: all var(--transition-speed);
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+  background: var(--secondary-color);
+}
+
+.form-control option {
+  background: var(--primary-dark);
+  color: var(--text-light);
+  padding: 0.75rem;
+}
+
+.form-control option:checked {
+  background: var(--accent-color);
+  color: white;
+}
+
+/* Estilos para botones y grupos de botones */
+.button-group {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+
+.btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-weight: 500;
+  transition: all var(--transition-speed);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  justify-content: flex-end;
+}
+
+.btn i {
+  font-size: 0.9rem;
+}
+
+/* Estilos específicos de botones */
+.btn-primary {
+  background-color: var(--accent-color);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-hover);
+}
+
+.btn-secondary {
+  color: #fff;
+  background-color: var(--primary-light);
+  border-color: var(--primary-light);
+}
+
+.btn-secondary:hover {
+  background-color: #2c3e50;
+  border-color: #2c3e50;
+}
+
 html {
   height: 100%;
   width: 100%;
@@ -392,10 +497,6 @@ body {
   &:active {
     transform: translateY(0);
   }
-  
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-  }
 }
 
 .upload-area i {
@@ -706,6 +807,7 @@ body {
   cursor: pointer;
   position: relative;
   overflow: hidden;
+  transition: all var(--transition-speed);
 }
 
 /* Tamaños de botones */
@@ -714,6 +816,10 @@ body {
   --btn-padding-x: 0.85rem;
   --btn-font-size: 0.875rem;
   --btn-border-radius: 0.25rem;
+  
+  .btn i {
+    font-size: 0.8em;
+  }
 }
 
 .btn-lg {
@@ -741,6 +847,17 @@ body {
   box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
 }
 
+.btn-secondary {
+  color: #fff;
+  background-color: var(--primary-light);
+  border-color: var(--primary-light);
+}
+
+.btn-secondary:hover {
+  background-color: #2c3e50;
+  border-color: #2c3e50;
+}
+
 .btn:active {
   transform: translateY(1px);
 }
@@ -755,17 +872,6 @@ body {
   color: #fff;
   background-color: var(--accent-color);
   border-color: var(--accent-color);
-}
-
-.btn-secondary {
-  color: #fff;
-  background-color: var(--primary-light);
-  border-color: var(--primary-light);
-}
-
-.btn-secondary:hover {
-  background-color: #2c3e50;
-  border-color: #2c3e50;
 }
 
 .btn-link {
@@ -788,10 +894,6 @@ body {
 .btn i {
   margin-right: 0.5rem;
   font-size: 0.9em;
-}
-
-.btn-sm i {
-  font-size: 0.8em;
 }
 
 /* ===========================================
@@ -860,11 +962,9 @@ body {
 .feature {
   background: rgba(255, 255, 255, 0.03);
   padding: 1.5rem;
-  border-radius: var(--border-radius);
   border: 1px solid var(--border-color);
-  transition:
-    transform 0.3s ease,
-    box-shadow 0.3s ease;
+  border-radius: var(--border-radius);
+  transition: all var(--transition-speed);
 }
 
 .feature:hover {
