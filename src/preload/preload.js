@@ -19,14 +19,19 @@ if (isNode) {
       'log:info',
       'window:minimize',
       'window:maximize',
-      'window:close'
+      'window:close',
+      'change-software',
+      'udp:change-port'
     ],
     // Canales de recepción (main -> renderer)
     RECEIVE: [
       'config:loaded',
       'file:upload:progress',
       'file:upload:complete',
-      'file:upload:error'
+      'file:upload:error',
+      'udp-message',
+      'udp-error',
+      'udp-started'
     ]
   };
 
@@ -38,6 +43,30 @@ if (isNode) {
   // Exponer API segura al renderer
   try {
     contextBridge.exposeInMainWorld('electron', {
+      // Métodos para el servidor UDP
+      changeSoftware: (software) => {
+        if (isValidChannel('SEND', 'change-software')) {
+          ipcRenderer.send('change-software', software);
+        }
+      },
+      
+      onUdpMessage: (callback) => {
+        if (isValidChannel('RECEIVE', 'udp-message')) {
+          ipcRenderer.on('udp-message', (event, data) => callback(data));
+        }
+      },
+      
+      onUdpError: (callback) => {
+        if (isValidChannel('RECEIVE', 'udp-error')) {
+          ipcRenderer.on('udp-error', (event, error) => callback(error));
+        }
+      },
+      
+      onUdpStarted: (callback) => {
+        if (isValidChannel('RECEIVE', 'udp-started')) {
+          ipcRenderer.on('udp-started', (event, data) => callback(data));
+        }
+      },
       // Operaciones de configuración
       saveConfig: async (config) => {
         return await ipcRenderer.invoke('config:save', config);
