@@ -85,18 +85,59 @@
 }
 
 .info-content {
-  font-family: monospace;
+  font-family: 'Courier New', Courier, monospace;
   font-size: 0.9rem;
-  line-height: 1.6;
-  color: var(--text-light);
-  white-space: pre-wrap;
+  color: #00ff00;
   max-height: 300px;
   min-height: 450px;
   overflow-y: auto;
   padding: 1rem;
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.3);
   border-radius: var(--border-radius);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--accent-color);
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.1);
+}
+
+.info-entry {
+  margin-bottom: 0.5rem;
+  padding: 0.5rem;
+  border-left: 3px solid var(--accent-color);
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 0 4px 4px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.info-entry.info {
+  border-left-color: #3498db;
+  color: #3498db;
+}
+
+.info-entry.success {
+  border-left-color: #2ecc71;
+  color: #2ecc71;
+}
+
+.info-entry.warning {
+  border-left-color: #f39c12;
+  color: #f39c12;
+}
+
+.info-entry.error {
+  border-left-color: #e74c3c;
+  color: #e74c3c;
+}
+
+.software-info {
+  font-weight: bold;
+  color: #3498db;
+}
+
+.port-info {
+  color: #2ecc71;
+  font-family: 'Courier New', monospace;
 }
 
 .info-entry {
