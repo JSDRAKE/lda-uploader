@@ -3,10 +3,70 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
 import { existsSync, mkdirSync } from 'fs';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const dgram = require('dgram');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let mainWindow;
+let udpServer = null;
+let currentPort = null;
+
+// Mapa de puertos por software
+const SOFTWARE_PORTS = {
+  'log4om': 2233,
+  'wsjtx': 2333,
+  'n1mm': 12060
+};
+
+// Función para iniciar el servidor UDP
+function startUdpServer(port) {
+  // Cerrar el servidor anterior si existe
+  if (udpServer) {
+    udpServer.close();
+  }
+
+  // Crear nuevo servidor UDP
+  udpServer = dgram.createSocket('udp4');
+  
+  udpServer.on('error', (err) => {
+    console.error(`Error en servidor UDP: ${err.stack}`);
+    if (mainWindow) {
+      mainWindow.webContents.send('udp-error', err.message);
+    }
+  });
+
+  udpServer.on('message', (msg, rinfo) => {
+    const message = msg.toString();
+    console.log(`Mensaje UDP recibido de ${rinfo.address}:${rinfo.port}: ${message}`);
+    
+    // Enviar el mensaje al renderer
+    if (mainWindow) {
+      mainWindow.webContents.send('udp-message', {
+        message: message,
+        remote: rinfo,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
+  udpServer.on('listening', () => {
+    const address = udpServer.address();
+    console.log(`Servidor UDP escuchando en ${address.address}:${address.port}`);
+    currentPort = address.port;
+    
+    if (mainWindow) {
+      mainWindow.webContents.send('udp-started', { port: address.port });
+    }
+  });
+
+  udpServer.bind(port);
+  return udpServer;
+}
+
+// Iniciar con el puerto por defecto (Log4OM)
+startUdpServer(SOFTWARE_PORTS.log4om);
 
 function createWindow() {
   const isDev = process.argv.includes('--dev');
@@ -130,7 +190,18 @@ ipcMain.on('config:getPath', (event) => {
   event.returnValue = configPath;
 });
 
-app.whenReady().then(createWindow);
+// Manejador para cambiar el puerto según el software seleccionado
+ipcMain.on('change-software', (event, software) => {
+  const port = SOFTWARE_PORTS[software];
+  if (port && port !== currentPort) {
+    console.log(`Cambiando a puerto ${port} para ${software}`);
+    startUdpServer(port);
+  }
+});
+
+app.whenReady().then(() => {
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
