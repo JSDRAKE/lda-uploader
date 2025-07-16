@@ -1,9 +1,4 @@
 document.addEventListener('DOMContentLoaded', async () => {
-  // Añadir información inicial al cargar la página
-  addInfoEntry('LdA Uploader iniciado', 'info');
-  addInfoEntry('Versión: 1.0.0', 'info');
-  addInfoEntry('Estado: Listo para operar', 'success');
-
   // Elementos del DOM
   const toggleBtn = document.getElementById('toggleSidebar');
   const sidebar = document.querySelector('.sidebar');
@@ -23,6 +18,92 @@ document.addEventListener('DOMContentLoaded', async () => {
   const aliasList = document.getElementById('aliasList');
   const indicativoSelect = document.getElementById('indicativo');
   const softwareSelect = document.getElementById('software');
+  
+  // Mostrar mensaje de bienvenida
+  addInfoEntry('LdA Uploader iniciado', 'info');
+  addInfoEntry('Versión: 1.0.0', 'info');
+  addInfoEntry('Estado: Listo para operar', 'success');
+  
+  // Mostrar información inicial del software y puerto
+  const initialSoftware = softwareSelect.value;
+  const initialPort = {
+    'log4om': 2233,
+    'wsjtx': 2333,
+    'n1mm': 12060
+  }[initialSoftware];
+  
+  addInfoEntry(`[${initialSoftware.toUpperCase()}] Escuchando en puerto ${initialPort}`, 'info');
+
+  // Mapa de puertos por software
+  const SOFTWARE_PORTS = {
+    'log4om': 2233,
+    'wsjtx': 2333,
+    'n1mm': 12060
+  };
+
+  // Bandera para controlar la carga inicial
+  let initialLoad = true;
+
+  // Actualizar información del software y puerto
+  function updateSoftwareInfo(software, isInitialLoad = false) {
+    const port = SOFTWARE_PORTS[software] || 'No configurado';
+    const infoText = `[${software.toUpperCase()}] Escuchando en puerto ${port}`;
+    
+    // Solo agregar el mensaje si no es la carga inicial o si es un cambio de software
+    if (!isInitialLoad) {
+      addInfoEntry(infoText, 'info');
+    }
+    
+    // Aquí podrías enviar el cambio de software al proceso principal
+    // cuando implementes el servidor UDP
+    // ipcRenderer.send('change-software', software);
+  }
+
+  // Manejar cambio de software
+  softwareSelect.addEventListener('change', (e) => {
+    const software = e.target.value;
+    updateSoftwareInfo(software, false);
+    
+    // Enviar el cambio de software al proceso principal
+    if (window.electron && window.electron.changeSoftware) {
+      window.electron.changeSoftware(software);
+    }
+  });
+  
+  // Configurar manejadores de eventos UDP
+  if (window.electron) {
+    // Manejar mensajes UDP recibidos
+    window.electron.onUdpMessage((data) => {
+      // Extraer solo los campos requeridos del mensaje
+      const callMatch = data.message.match(/<CALL:(\d+)>([^<]+)/);
+      const bandMatch = data.message.match(/<BAND:(\d+)>([^<]+)/);
+      const modeMatch = data.message.match(/<MODE:(\d+)>([^<]+)/);
+      
+      if (callMatch && bandMatch && modeMatch) {
+        const call = callMatch[2].trim();
+        const band = bandMatch[2].trim();
+        const mode = modeMatch[2].trim();
+        
+        addInfoEntry(`Nuevo contacto: ${call} en ${band} ${mode}`, 'info');
+      } else {
+        // Si no se pueden extraer los campos, mostrar mensaje de depuración
+        console.log('Mensaje UDP recibido (formato no esperado):', data.message);
+      }
+    });
+    
+    // Manejar errores del servidor UDP
+    window.electron.onUdpError((error) => {
+      addInfoEntry(`Error en servidor UDP: ${error}`, 'error');
+    });
+    
+    // Manejar inicio del servidor UDP
+    window.electron.onUdpStarted((data) => {
+      addInfoEntry(`Servidor UDP iniciado en puerto ${data.port}`, 'success');
+    });
+  }
+  
+  // Mostrar información inicial del software (solo una vez)
+  updateSoftwareInfo(softwareSelect.value, true);
 
   // Cargar estado inicial del sidebar
   const loadSidebarState = () => {
@@ -295,8 +376,13 @@ function addInfoEntry(message, type = 'info') {
   const infoContent = document.getElementById('infoContent');
   const entry = document.createElement('div');
   entry.className = `info-entry ${type}`;
-  entry.setAttribute('data-type', type.toUpperCase());
-  entry.textContent = message;
+  
+  // Formatear la entrada en una sola línea
+  entry.innerHTML = `
+    <span class="timestamp">[${new Date().toLocaleTimeString()}]</span>
+    <span>${message}</span>
+  `;
+  
   infoContent.appendChild(entry);
   
   // Desplazar automáticamente al final
