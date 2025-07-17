@@ -16,7 +16,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const aliasInput = document.getElementById('aliasInput');
   const addAliasBtn = document.getElementById('addAliasBtn');
   const aliasList = document.getElementById('aliasList');
-  const indicativoSelect = document.getElementById('indicativo');
   const softwareSelect = document.getElementById('software');
   
   // Mostrar mensaje de bienvenida
@@ -440,45 +439,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
   
-  // Cargar configuración al inicio
-  async function loadIndicativos() {
+  // Función para cargar la configuración
+  async function loadConfig() {
     try {
       const settings = await window.electron.loadConfig();
       if (settings) {
-        // Limpiar el selector
-        indicativoSelect.innerHTML = '';
-        
-        // Agregar la señal principal
-        if (settings.mainCallSign) {
-          const option = document.createElement('option');
-          option.value = settings.mainCallSign;
-          option.textContent = settings.mainCallSign;
-          indicativoSelect.appendChild(option);
-        }
-        
-        // Agregar los alias
-        if (settings.aliases && settings.aliases.length > 0) {
-          settings.aliases.forEach(alias => {
-            const option = document.createElement('option');
-            option.value = alias;
-            option.textContent = alias;
-            indicativoSelect.appendChild(option);
-          });
-        }
-        
-        // Seleccionar el primer indicativo por defecto
-        if (indicativoSelect.options.length > 0) {
-          indicativoSelect.selectedIndex = 0;
-        }
+        // Configuración cargada correctamente
+        return settings;
       }
     } catch (error) {
-      console.error('Error al cargar los indicativos:', error);
-      showNotification('Error al cargar los indicativos', 'error');
+      console.error('Error al cargar la configuración:', error);
+      showNotification('Error al cargar la configuración', 'error');
     }
+    return null;
   }
-  
-  // Cargar los indicativos al inicio
-  loadIndicativos();
 
   // Funciones para mostrar información en el área de información
 function addInfoEntry(message, type = 'info') {
@@ -505,7 +479,6 @@ function clearInfo() {
 
   // Event listeners para los botones
   const updateBtn = document.getElementById('updateBtn');
-  const applyBtn = document.getElementById('applyBtn');
   const clearInfoBtn = document.getElementById('clearInfo');
 
   // Limpiar información cuando cambie de sección
@@ -517,33 +490,42 @@ function clearInfo() {
     });
   });
 
+  // Actualizar configuración
   updateBtn.addEventListener('click', async () => {
-  try {
-    await loadIndicativos();
-    addInfoEntry('Indicativos actualizados correctamente', 'success');
-    showNotification('Indicativos actualizados correctamente', 'success');
-  } catch (error) {
-    console.error('Error al actualizar los indicativos:', error);
-    addInfoEntry('Error al actualizar los indicativos', 'error');
-    showNotification('Error al actualizar los indicativos', 'error');
-  }
-});
-
-  applyBtn.addEventListener('click', async () => {
     try {
-      const indicativo = indicativoSelect.value;
-      const software = softwareSelect.value;
-      
-      // Aquí iría la lógica para aplicar los cambios
-      // Por ejemplo, podríamos guardar estos valores en el estado de la aplicación
-      // o realizar alguna acción con ellos
-      
-      addInfoEntry('Configuración aplicada correctamente', 'success');
-      showNotification('Configuración aplicada correctamente', 'success');
+      await loadConfig();
+      addInfoEntry('Configuración actualizada correctamente', 'success');
+      showNotification('Configuración actualizada correctamente', 'success');
     } catch (error) {
-      console.error('Error al aplicar la configuración:', error);
-      addInfoEntry('Error al aplicar la configuración', 'error');
-      showNotification('Error al aplicar la configuración', 'error');
+      console.error('Error al actualizar la configuración:', error);
+      addInfoEntry('Error al actualizar la configuración', 'error');
+      showNotification('Error al actualizar la configuración', 'error');
+    }
+  });
+
+  // Cambio automático de software
+  softwareSelect.addEventListener('change', async (event) => {
+    try {
+      const software = event.target.value;
+      // Notificar al proceso principal sobre el cambio de software
+      if (window.electron && window.electron.changeSoftware) {
+        await window.electron.changeSoftware(software);
+        
+        // Actualizar el puerto según el software seleccionado
+        const portMap = {
+          'log4om': 2233,
+          'wsjtx': 2333,
+          'n1mm': 12060
+        };
+        const port = portMap[software] || 'desconocido';
+        
+        addInfoEntry(`Software cambiado a: ${software.toUpperCase()} (puerto ${port})`, 'success');
+        showNotification(`Software cambiado a: ${software.toUpperCase()}`, 'success');
+      }
+    } catch (error) {
+      console.error('Error al cambiar de software:', error);
+      addInfoEntry('Error al cambiar de software', 'error');
+      showNotification('Error al cambiar de software', 'error');
     }
   });
 
