@@ -24,7 +24,8 @@ if (isNode) {
       'change-software',
       'udp:change-port',
       'update-lda-config',
-      'get-lda-config'
+      'get-lda-config',
+      'get-app-info'
     ],
     // Canales de recepción (main -> renderer)
     RECEIVE: [
@@ -111,6 +112,10 @@ if (isNode) {
       platform: process.platform,
       isDev: process.env.NODE_ENV === 'development',
       appVersion: process.env.npm_package_version || '1.0.0',
+      // Abrir enlace externo en el navegador predeterminado
+      openExternal: (url) => ipcRenderer.invoke('open-external', url),
+      // Obtener información de la aplicación
+      getAppInfo: () => ipcRenderer.invoke('get-app-info'),
       
       // Métodos para LdA
       onLdaStatus: (callback) => {
