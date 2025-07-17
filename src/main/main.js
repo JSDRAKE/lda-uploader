@@ -241,32 +241,74 @@ function startUdpServer(port) {
         
         return result;
       } else {
-        // Parser estándar ADIF (para Log4OM, N1MM, etc.)
-        const callMatch = message.match(/<CALL:(\d+)>([^<]+)/i);
-        const bandMatch = message.match(/<BAND:(\d+)>([^<]+)/i);
-        const modeMatch = message.match(/<MODE:(\d+)>([^<]+)/i);
-        const dateMatch = message.match(/<QSO_DATE:(\d+)>([^<]+)/i) || 
-                          message.match(/<QSO_DATE_OFF:(\d+)>([^<]+)/i);
-        const timeMatch = message.match(/<TIME_ON:(\d+)>([^<]+)/i) || 
-                          message.match(/<TIME_OFF:(\d+)>([^<]+)/i);
-        const rstMatch = message.match(/<RST_SENT:(\d+)>([^<]+)/i) || 
-                         message.match(/<RST_RCVD:(\d+)>([^<]+)/i);
-        const commentMatch = message.match(/<COMMENT:(\d+)>([^<]*)/i);
-        
-        if (!callMatch || !bandMatch || !modeMatch || !dateMatch || !timeMatch) {
-          console.warn('Mensaje ADIF incompleto, faltan campos requeridos');
-          return null;
+        // Función para parsear mensaje ADIF
+        function parseAdifMessage(message) {
+          const result = {};
+          
+          // Extraer CALL
+          const callMatch = message.match(/<CALL:(\d+)>([^<]+)/i);
+          if (callMatch) {
+            result.call = callMatch[2].trim();
+          }
+          
+          // Extraer STATION_CALLSIGN (Log4OM) o station_callsign (WSJT-X/JTDX)
+          const stationCallMatch = message.match(/<(STATION_CALLSIGN|station_callsign):(\d+)>([^<]+)/i);
+          if (stationCallMatch) {
+            result.stationCallsign = stationCallMatch[3].trim();
+          }
+          
+          // Extraer BAND
+          const bandMatch = message.match(/<BAND:(\d+)>([^<]+)/i);
+          if (bandMatch) {
+            result.band = bandMatch[2].trim();
+          }
+          
+          // Extraer MODE
+          const modeMatch = message.match(/<MODE:(\d+)>([^<]+)/i);
+          if (modeMatch) {
+            result.mode = modeMatch[2].trim();
+          }
+          
+          // Extraer QSO_DATE
+          const dateMatch = message.match(/<QSO_DATE:(\d+)>([^<]+)/i) || 
+                           message.match(/<QSO_DATE_OFF:(\d+)>([^<]+)/i);
+          if (dateMatch) {
+            result.date = dateMatch[2].trim();
+          }
+          
+          // Extraer TIME_ON
+          const timeMatch = message.match(/<TIME_ON:(\d+)>([^<]+)/i) || 
+                           message.match(/<TIME_OFF:(\d+)>([^<]+)/i);
+          if (timeMatch) {
+            result.time = timeMatch[2].trim();
+          }
+          
+          // Extraer RST_SENT o RST_RCVD
+          const rstMatch = message.match(/<RST_SENT:(\d+)>([^<]+)/i) || 
+                          message.match(/<RST_RCVD:(\d+)>([^<]+)/i);
+          if (rstMatch) {
+            result.rst = rstMatch[2].trim();
+          }
+          
+          // Extraer COMMENT si existe
+          const commentMatch = message.match(/<COMMENT:(\d+)>([^<]*)/i);
+          if (commentMatch) {
+            result.message = commentMatch[2].trim();
+          }
+          
+          // Verificar que tengamos los campos requeridos
+          if (!result.call || !result.band || !result.mode || !result.date || !result.time) {
+            console.warn('Mensaje ADIF incompleto, faltan campos requeridos');
+            return null;
+          }
+          
+          return result;
         }
         
-        return {
-          call: callMatch[2].trim(),
-          band: bandMatch[2].trim(),
-          mode: modeMatch[2].trim(),
-          date: dateMatch[2].trim(),
-          time: timeMatch[2].trim(),
-          rst: rstMatch ? rstMatch[2].trim() : '599',
-          message: commentMatch ? commentMatch[2].trim() : ''
-        };
+        const qsoData = parseAdifMessage(message);
+        if (qsoData) {
+          return qsoData;
+        }
       }
     } catch (error) {
       console.error('Error al parsear mensaje:', error);
