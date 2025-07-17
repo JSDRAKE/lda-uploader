@@ -70,24 +70,83 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
   
-  // Configurar manejadores de eventos UDP
+  // Configurar manejadores de eventos UDP y LdA
   if (window.electron) {
     // Manejar mensajes UDP recibidos
     window.electron.onUdpMessage((data) => {
-      // Extraer solo los campos requeridos del mensaje
-      const callMatch = data.message.match(/<CALL:(\d+)>([^<]+)/);
-      const bandMatch = data.message.match(/<BAND:(\d+)>([^<]+)/);
-      const modeMatch = data.message.match(/<MODE:(\d+)>([^<]+)/);
-      
-      if (callMatch && bandMatch && modeMatch) {
-        const call = callMatch[2].trim();
-        const band = bandMatch[2].trim();
-        const mode = modeMatch[2].trim();
+      try {
+        // Asegurarse de que data sea un objeto con el formato correcto
+        let messageData = {};
         
-        addInfoEntry(`Nuevo contacto: ${call} en ${band} ${mode}`, 'info');
-      } else {
-        // Si no se pueden extraer los campos, mostrar mensaje de depuración
-        console.log('Mensaje UDP recibido (formato no esperado):', data.message);
+        if (typeof data === 'string') {
+          // Si el mensaje es una cadena, crear un objeto con el formato esperado
+          messageData = { 
+            message: data, 
+            processed: false,
+            address: 'unknown',
+            port: 0,
+            timestamp: new Date().toISOString()
+          };
+        } else if (data && typeof data === 'object') {
+          // Si es un objeto, asegurarse de que tenga los campos requeridos
+          messageData = {
+            message: data.message || '',
+            processed: !!data.processed,
+            address: data.address || 'unknown',
+            port: data.port || 0,
+            timestamp: data.timestamp || new Date().toISOString(),
+            ...data // Mantener cualquier otro campo
+          };
+        } else {
+          console.error('Formato de mensaje UDP no válido:', data);
+          return;
+        }
+        
+        const messageStr = String(messageData.message || '');
+        
+        // Extraer solo los campos requeridos del mensaje
+        const callMatch = messageStr.match(/<CALL:(\d+)>([^<]+)/i);
+        const bandMatch = messageStr.match(/<BAND:(\d+)>([^<]+)/i);
+        const modeMatch = messageStr.match(/<MODE:(\d+)>([^<]+)/i);
+        
+        // Si no encontramos los campos en el formato estándar, intentar con el formato de WSJT-X
+        if (!callMatch || !bandMatch || !modeMatch) {
+          const wsjtxCallMatch = messageStr.match(/<call:(\d+)>([^<]+)/i);
+          const wsjtxBandMatch = messageStr.match(/<band:(\d+)>([^<]+)/i);
+          const wsjtxModeMatch = messageStr.match(/<mode:(\d+)>([^<]+)/i);
+          
+          if (wsjtxCallMatch && wsjtxModeMatch) {
+            const call = wsjtxCallMatch[2].trim();
+            const mode = wsjtxModeMatch[2].trim();
+            const band = wsjtxBandMatch ? wsjtxBandMatch[2].trim() : 'desconocida';
+            
+            if (messageData.processed) {
+              addInfoEntry(`✓ Contacto procesado: ${call} en ${band} ${mode}`, 'success');
+            } else {
+              addInfoEntry(`Nuevo contacto: ${call} en ${band} ${mode}`, 'info');
+            }
+            return;
+          }
+        }
+        
+        // Si encontramos los campos en el formato estándar
+        if (callMatch && bandMatch && modeMatch) {
+          const call = callMatch[2].trim();
+          const band = bandMatch[2].trim();
+          const mode = modeMatch[2].trim();
+          
+          if (messageData.processed) {
+            addInfoEntry(`✓ Contacto procesado: ${call} en ${band} ${mode}`, 'success');
+          } else {
+            addInfoEntry(`Nuevo contacto: ${call} en ${band} ${mode}`, 'info');
+          }
+        } else if (!messageData.processed) {
+          console.log('Mensaje UDP recibido (formato no esperado):', messageStr);
+          addInfoEntry('Mensaje recibido con formato no esperado', 'warning');
+        }
+      } catch (error) {
+        console.error('Error al procesar mensaje UDP:', error);
+        addInfoEntry(`Error: ${error.message}`, 'error');
       }
     });
     
@@ -100,6 +159,56 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.electron.onUdpStarted((data) => {
       addInfoEntry(`Servidor UDP iniciado en puerto ${data.port}`, 'success');
     });
+    
+    // Manejar estado de envío a LdA
+    window.electron.onLdaStatus((data) => {
+      if (data.success) {
+        const call = data.data?.call || 'Contacto';
+        const message = data.message || 'QSO enviado correctamente a LdA';
+        addInfoEntry(`✓ ${message}: ${call}`, 'success');
+        showNotification(message, 'success');
+      } else {
+        const errorMsg = data.message || 'Error desconocido';
+        addInfoEntry(`✗ Error: ${errorMsg}`, 'error');
+        showNotification(`Error al enviar QSO: ${errorMsg}`, 'error');
+      }
+    });
+    
+    // Manejar errores de LdA
+    window.electron.onLdaError((error) => {
+      const errorMsg = error.message || 'Error desconocido';
+      addInfoEntry(`✗ Error de LdA: ${errorMsg}`, 'error');
+      showNotification(`Error de LdA: ${errorMsg}`, 'error');
+    });
+    
+    // Cargar configuración de LdA al iniciar
+    async function loadLdaConfig() {
+      try {
+        const config = await window.electron.getLdaConfig();
+        if (config) {
+          usernameInput.value = config.username || '';
+          passwordInput.value = config.password || '';
+          mainCallSignInput.value = config.mainCallSign || '';
+          
+          // Cargar alias si existen
+          if (config.aliases && Array.isArray(config.aliases)) {
+            aliases = config.aliases;
+            renderAliases();
+          }
+          
+          addInfoEntry('Configuración cargada correctamente', 'success');
+          return true;
+        }
+        return false;
+      } catch (error) {
+        console.error('Error al cargar la configuración de LdA:', error);
+        addInfoEntry(`Error al cargar configuración: ${error.message}`, 'error');
+        return false;
+      }
+    }
+    
+    // Cargar la configuración al iniciar
+    loadLdaConfig();
   }
   
   // Mostrar información inicial del software (solo una vez)
@@ -570,6 +679,8 @@ clearInfoBtn.addEventListener('click', () => {
       console.error('Error al guardar los alias:', error);
     }
   }
+  
+
   
   // Renderizar la lista de alias
   function renderAliases() {
