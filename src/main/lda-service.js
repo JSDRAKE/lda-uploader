@@ -86,8 +86,15 @@ export default class LdaService {
   async sendQso(qsoData) {
     try {
       console.log('Datos QSO recibidos:', JSON.stringify(qsoData, null, 2));
-      const { call, band, mode, date, time, rst, message = '' } = qsoData;
+      const { call, band, mode, date, time, rst, message = '', stationCallsign } = qsoData;
       const { user, password, myCall } = this.config;
+      
+      // Usar el stationCallsign del mensaje si está disponible, de lo contrario usar el de la configuración
+      const txCall = stationCallsign || myCall;
+      
+      if (!txCall) {
+        throw new Error('No se pudo determinar el indicativo de la estación (stationCallsign o myCall)');
+      }
 
       // Validar datos requeridos
       if (!user || !password || !myCall) {
@@ -120,13 +127,13 @@ export default class LdaService {
       const params = new URLSearchParams();
       params.append('user', user);
       params.append('pass', password);
-      params.append('micall', myCall);
+      params.append('micall', txCall); // Usar el indicativo de la estación del mensaje
       params.append('sucall', call);
 
       const bandValue = this.bandMap[band.toLowerCase()];
       const modeValue = this.modeMap[mode.toUpperCase()];
 
-      console.log(`Enviando QSO a LdA: ${myCall} -> ${call} en ${bandValue} ${modeValue}`);
+      console.log(`Enviando QSO a LdA: ${txCall} -> ${call} en ${bandValue} ${modeValue}`);
 
       params.append('banda', bandValue);
       params.append('modo', modeValue);
