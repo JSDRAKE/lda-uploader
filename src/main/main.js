@@ -3,9 +3,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
 import { existsSync, mkdirSync } from 'fs';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const dgram = require('dgram');
+import dgram from 'dgram';
+import LdaService from './lda-service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -13,12 +12,51 @@ let mainWindow;
 let udpServer = null;
 let currentPort = null;
 
-// Mapa de puertos por software
-const SOFTWARE_PORTS = {
-  'log4om': 2233,
-  'wsjtx': 2333,
-  'n1mm': 12060
+// Configuración de LdA
+let ldaConfig = {
+  user: '',
+  password: '',
+  myCall: ''
 };
+
+// Configuración de perfiles por software
+const SOFTWARE_PROFILES = {
+  log4om: {
+    port: 2233,
+    name: 'Log4OM',
+    parser: 'adif',
+    // Configuración específica para Log4OM
+    config: {
+      // Puedes agregar configuraciones específicas aquí
+    }
+  },
+  wsjtx: {
+    port: 2333,
+    name: 'WSJT-X/JTDX',
+    parser: 'wsjtx',
+    // Configuración específica para WSJT-X/JTDX
+    config: {
+      defaultMode: 'FT8',  // Modo por defecto si no se especifica
+      defaultRST: '+00',  // RST por defecto para modos digitales
+      requireGrid: true   // Requiere cuadrícula para WSJT-X
+    }
+  },
+  n1mm: {
+    port: 12060,
+    name: 'N1MM+',
+    parser: 'adif',
+    config: {}
+  }
+};
+
+// Mapa de puertos por software (para compatibilidad)
+const SOFTWARE_PORTS = {};
+Object.entries(SOFTWARE_PROFILES).forEach(([key, value]) => {
+  SOFTWARE_PORTS[key] = value.port;
+});
+
+// Inicializar servicio LdA
+let ldaService = new LdaService(ldaConfig);
 
 // Función para iniciar el servidor UDP
 function startUdpServer(port) {
@@ -37,19 +75,204 @@ function startUdpServer(port) {
     }
   });
 
-  udpServer.on('message', (msg, rinfo) => {
-    const message = msg.toString();
-    console.log(`Mensaje UDP recibido de ${rinfo.address}:${rinfo.port}: ${message}`);
+  udpServer.on('message', async (message, rinfo) => {
+    // Asegurarse de que el mensaje sea una cadena
+    const msgString = Buffer.isBuffer(message) ? message.toString() : String(message);
     
-    // Enviar el mensaje al renderer
+    if (typeof msgString !== 'string') {
+      console.error('Error: El mensaje recibido no es un string válido:', message);
+      return;
+    }
+    
+    console.log(`Mensaje UDP recibido de ${rinfo.address}:${rinfo.port}:`, msgString);
+    
+    // Determinar el tipo de software basado en el puerto
+    let softwareType = 'log4om'; // Por defecto
+    for (const [type, profile] of Object.entries(SOFTWARE_PROFILES)) {
+      if (profile.port === rinfo.port) {
+        softwareType = type;
+        break;
+      }
+    }
+    
+    console.log(`Procesando mensaje como ${SOFTWARE_PROFILES[softwareType].name}`);
+    
+    // Enviar mensaje al renderer
     if (mainWindow) {
-      mainWindow.webContents.send('udp-message', {
-        message: message,
-        remote: rinfo,
-        timestamp: new Date().toISOString()
+      mainWindow.webContents.send('udp-message', { 
+        message: msgString,
+        address: rinfo.address,
+        port: rinfo.port,
+        processed: false,
+        software: SOFTWARE_PROFILES[softwareType].name
       });
     }
+    
+    try {
+      // Cargar configuración actual
+      let config;
+      try {
+        const configData = await fs.readFile(configPath, 'utf8');
+        config = JSON.parse(configData);
+      } catch (error) {
+        console.error('Error al cargar configuración:', error);
+        throw new Error('No se pudo cargar la configuración del usuario');
+      }
+      
+      // Actualizar configuración de LdA
+      ldaConfig = {
+        user: config.username || '',
+        password: config.password || '',
+        myCall: config.mainCallSign || ''
+      };
+      
+      // Verificar que tengamos los datos necesarios
+      if (!ldaConfig.user || !ldaConfig.password || !ldaConfig.myCall) {
+        throw new Error('Falta configuración de usuario, contraseña o indicativo principal');
+      }
+      
+      // Actualizar servicio LdA con la nueva configuración
+      ldaService = new LdaService(ldaConfig);
+      
+      // Parsear mensaje según el tipo de software
+      const adifData = parseMessage(msgString, softwareType);
+      
+      if (!adifData) {
+        console.warn('No se pudo procesar el mensaje');
+        return;
+      }
+      
+      // Enviar a LdA
+      const result = await ldaService.sendQso(adifData);
+      
+      // Notificar al renderer
+      if (mainWindow) {
+        if (result.success) {
+          mainWindow.webContents.send('udp-message', {
+            message,
+            address: rinfo.address,
+            port: rinfo.port,
+            processed: true,
+            timestamp: new Date().toISOString(),
+            status: 'success',
+            details: result.message
+          });
+          
+          mainWindow.webContents.send('lda-status', {
+            success: true,
+            message: 'QSO enviado a LdA correctamente',
+            data: result
+          });
+        } else {
+          console.error('Error al enviar QSO a LdA:', result.error || result.message);
+          
+          mainWindow.webContents.send('udp-message', {
+            message,
+            address: rinfo.address,
+            port: rinfo.port,
+            processed: false,
+            timestamp: new Date().toISOString(),
+            status: 'error',
+            error: result.message || 'Error desconocido al enviar a LdA',
+            details: result.error ? JSON.stringify(result.error, null, 2) : ''
+          });
+          
+          mainWindow.webContents.send('lda-error', {
+            success: false,
+            message: result.message || 'Error al enviar QSO a LdA',
+            error: result.error,
+            data: adifData
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error al procesar mensaje UDP:', error);
+      if (mainWindow) {
+        mainWindow.webContents.send('lda-error', {
+          success: false,
+          message: error.message,
+          error: error.toString()
+        });
+      }
+    }
   });
+  
+  // Función para parsear mensaje según el formato del software
+  function parseMessage(message, softwareType = 'log4om') {
+    try {
+      const profile = SOFTWARE_PROFILES[softwareType] || SOFTWARE_PROFILES.log4om;
+      
+      if (profile.parser === 'wsjtx') {
+        // Parser para WSJT-X/JTDX
+        const result = {};
+        
+        // Extraer campos en formato <field:length>value
+        const fields = {};
+        const regex = /<([^:>]+):(\d+)>([^<]*)/g;
+        let match;
+        
+        while ((match = regex.exec(message)) !== null) {
+          const field = match[1].toLowerCase();
+          const value = match[3];
+          fields[field] = value;
+        }
+        
+        // Mapear campos al formato estándar
+        if (!fields.call) {
+          console.warn('Mensaje sin indicativo de llamada');
+          return null;
+        }
+        
+        // Obtener modo o usar el predeterminado
+        let mode = fields.mode || profile.config.defaultMode || 'FT8';
+        
+        // Si el modo está en minúsculas, convertirlo a mayúsculas
+        if (mode && mode === mode.toLowerCase()) {
+          mode = mode.toUpperCase();
+        }
+        
+        result.call = fields.call.trim();
+        result.band = fields.band || '';
+        result.mode = mode;
+        result.date = fields.qso_date || new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        result.time = fields.time_on || '';
+        result.rst = fields.rst_sent || fields.rst_rcvd || profile.config.defaultRST || '599';
+        result.message = fields.comment || '';
+        
+        return result;
+      } else {
+        // Parser estándar ADIF (para Log4OM, N1MM, etc.)
+        const callMatch = message.match(/<CALL:(\d+)>([^<]+)/i);
+        const bandMatch = message.match(/<BAND:(\d+)>([^<]+)/i);
+        const modeMatch = message.match(/<MODE:(\d+)>([^<]+)/i);
+        const dateMatch = message.match(/<QSO_DATE:(\d+)>([^<]+)/i) || 
+                          message.match(/<QSO_DATE_OFF:(\d+)>([^<]+)/i);
+        const timeMatch = message.match(/<TIME_ON:(\d+)>([^<]+)/i) || 
+                          message.match(/<TIME_OFF:(\d+)>([^<]+)/i);
+        const rstMatch = message.match(/<RST_SENT:(\d+)>([^<]+)/i) || 
+                         message.match(/<RST_RCVD:(\d+)>([^<]+)/i);
+        const commentMatch = message.match(/<COMMENT:(\d+)>([^<]*)/i);
+        
+        if (!callMatch || !bandMatch || !modeMatch || !dateMatch || !timeMatch) {
+          console.warn('Mensaje ADIF incompleto, faltan campos requeridos');
+          return null;
+        }
+        
+        return {
+          call: callMatch[2].trim(),
+          band: bandMatch[2].trim(),
+          mode: modeMatch[2].trim(),
+          date: dateMatch[2].trim(),
+          time: timeMatch[2].trim(),
+          rst: rstMatch ? rstMatch[2].trim() : '599',
+          message: commentMatch ? commentMatch[2].trim() : ''
+        };
+      }
+    } catch (error) {
+      console.error('Error al parsear mensaje:', error);
+      return null;
+    }
+  }
 
   udpServer.on('listening', () => {
     const address = udpServer.address();
@@ -157,6 +380,74 @@ const userDataPath = app.getPath('userData');
 const configDir = path.join(userDataPath, 'config');
 const configPath = path.join(configDir, 'config.json');
 
+// Cargar configuración desde archivo
+async function loadConfig() {
+  try {
+    if (existsSync(configPath)) {
+      const data = await fs.readFile(configPath, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error('Error al cargar la configuración:', error);
+  }
+  return null;
+}
+
+// Guardar configuración en archivo
+async function saveConfig(config) {
+  try {
+    if (!existsSync(configDir)) {
+      mkdirSync(configDir, { recursive: true });
+    }
+    await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error al guardar la configuración:', error);
+    return false;
+  }
+}
+
+// Manejadores IPC para LdA
+ipcMain.handle('get-lda-config', async () => {
+  try {
+    const config = await loadConfig();
+    if (config) {
+      // Actualizar la configuración en memoria
+      ldaConfig = {
+        user: config.username || '',
+        password: config.password || '',
+        myCall: config.mainCallSign || ''
+      };
+      ldaService = new LdaService(ldaConfig);
+      return config;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error al obtener configuración LdA:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('update-lda-config', async (event, newConfig) => {
+  try {
+    const saved = await saveConfig(newConfig);
+    if (saved) {
+      // Actualizar la configuración en memoria
+      ldaConfig = {
+        user: newConfig.username || '',
+        password: newConfig.password || '',
+        myCall: newConfig.mainCallSign || ''
+      };
+      ldaService = new LdaService(ldaConfig);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error al actualizar configuración LdA:', error);
+    throw error;
+  }
+});
+
 // Asegurarse de que el directorio de configuración exista
 if (!existsSync(configDir)) {
   mkdirSync(configDir, { recursive: true });
@@ -198,6 +489,9 @@ ipcMain.on('change-software', (event, software) => {
     startUdpServer(port);
   }
 });
+
+// Manejador para obtener la configuración actual de LdA
+// (Manejador ya definido anteriormente)
 
 app.whenReady().then(() => {
   createWindow();
