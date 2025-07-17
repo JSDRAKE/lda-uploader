@@ -1,91 +1,140 @@
-const { contextBridge, ipcRenderer } = require('electron');
+// Este archivo se ejecuta en un contexto especial de Electron
+// Tiene acceso a Node.js y a las APIs de Electron
 
-/**
- * Canales IPC permitidos para la comunicación segura entre procesos.
- * @type {Object}
- * @property {string[]} SEND - Canales permitidos para enviar mensajes al proceso principal.
- * @property {string[]} RECEIVE - Canales permitidos para recibir mensajes del proceso principal.
- */
-const ALLOWED_IPC_CHANNELS = {
-  SEND: ['toMain'],
-  RECEIVE: ['fromMain']
-};
+// Verificar si estamos en el contexto de Node.js
+const isNode = typeof process !== 'undefined' && process.versions && process.versions.node;
 
-/**
- * Verifica si un canal está en la lista de canales permitidos.
- * @param {string} channel - Nombre del canal a verificar.
- * @param {string} type - Tipo de operación ('SEND' o 'RECEIVE').
- * @returns {boolean} True si el canal está permitido, false en caso contrario.
- */
-function isAllowedChannel(channel, type) {
-  if (!ALLOWED_IPC_CHANNELS[type]) {
-    console.error(`Tipo de canal no válido: ${type}`);
-    return false;
+if (isNode) {
+  // Cargar módulos de Node.js
+  const { contextBridge, ipcRenderer } = require('electron');
+
+  // Canales IPC permitidos para la comunicación segura entre procesos
+  const ALLOWED_IPC_CHANNELS = {
+    // Canales de envío (renderer -> main)
+    SEND: [
+      'config:save',
+      'config:load',
+      'file:upload',
+      'log:debug',
+      'log:error',
+      'log:info',
+      'window:minimize',
+      'window:maximize',
+      'window:close',
+      'change-software',
+      'udp:change-port',
+      'update-lda-config',
+      'get-lda-config',
+      'get-app-info'
+    ],
+    // Canales de recepción (main -> renderer)
+    RECEIVE: [
+      'config:loaded',
+      'file:upload:progress',
+      'file:upload:complete',
+      'file:upload:error',
+      'udp-message',
+      'udp-error',
+      'udp-started',
+      'lda-status',
+      'lda-error'
+    ]
+  };
+
+  // Validar canales IPC
+  function isValidChannel(type, channel) {
+    return ALLOWED_IPC_CHANNELS[type] && ALLOWED_IPC_CHANNELS[type].includes(channel);
   }
-  const allowed = ALLOWED_IPC_CHANNELS[type].includes(channel);
-  if (!allowed) {
-    console.warn(`Intento de acceso a canal no permitido: ${channel} (${type})`);
-  }
-  return allowed;
-}
 
-// Expone de forma segura las APIs al proceso de renderizado
-contextBridge.exposeInMainWorld('electron', {
-  /**
-   * Envía un mensaje de forma segura al proceso principal.
-   * @param {string} channel - Canal por el que se envía el mensaje.
-   * @param {any} data - Datos a enviar.
-   * @throws {Error} Si el canal no está permitido.
-   */
-  send: (channel, data) => {
-    if (isAllowedChannel(channel, 'SEND')) {
-      ipcRenderer.send(channel, data);
-    } else {
-      throw new Error(`Canal no permitido: ${channel}`);
-    }
-  },
-
-  /**
-   * Recibe mensajes del proceso principal de forma segura.
-   * @param {string} channel - Canal por el que se recibe el mensaje.
-   * @param {Function} callback - Función a ejecutar cuando se reciba un mensaje.
-   * @returns {Function} Función para eliminar el listener.
-   * @throws {Error} Si el canal no está permitido.
-   */
-  receive: (channel, callback) => {
-    if (isAllowedChannel(channel, 'RECEIVE')) {
-      const subscription = (event, ...args) => callback(...args);
-      ipcRenderer.on(channel, subscription);
+  // Exponer API segura al renderer
+  try {
+    const api = {
+      // Invocar métodos en el proceso principal
+      invoke: (channel, ...args) => {
+        if (isValidChannel('SEND', channel)) {
+          return ipcRenderer.invoke(channel, ...args);
+        }
+        console.warn(`[SECURITY] Intento de invocar canal no permitido: ${channel}`);
+        return Promise.reject(new Error(`Invalid channel: ${channel}`));
+      },
       
-      // Devuelve una función para eliminar el listener
-      return () => {
-        ipcRenderer.removeListener(channel, subscription);
-      };
-    }
-    throw new Error(`Canal no permitido: ${channel}`);
-  },
-
-  /**
-   * Invoca un método en el proceso principal y devuelve una promesa con la respuesta.
-   * Útil para operaciones asíncronas.
-   * @param {string} channel - Canal por el que se envía la petición.
-   * @param {any} data - Datos a enviar.
-   * @returns {Promise<any>} Promesa que se resuelve con la respuesta.
-   */
-  invoke: async (channel, data) => {
-    if (isAllowedChannel(channel, 'SEND')) {
-      try {
-        return await ipcRenderer.invoke(channel, data);
-      } catch (error) {
-        console.error(`Error en la invocación IPC (${channel}):`, error);
-        throw error;
-      }
-    }
-    throw new Error(`Canal no permitido: ${channel}`);
+      // Escuchar eventos del proceso principal
+      on: (channel, callback) => {
+        if (isValidChannel('RECEIVE', channel)) {
+          const subscription = (event, ...args) => callback(...args);
+          ipcRenderer.on(channel, subscription);
+          return () => ipcRenderer.removeListener(channel, subscription);
+        }
+        console.warn(`[SECURITY] Intento de escuchar canal no permitido: ${channel}`);
+        return () => {};
+      },
+      
+      // Métodos específicos para la aplicación
+      changeSoftware: (software) => {
+        if (isValidChannel('SEND', 'change-software')) {
+          ipcRenderer.send('change-software', software);
+        }
+      },
+      
+      // Métodos para UDP
+      onUdpMessage: (callback) => {
+        if (isValidChannel('RECEIVE', 'udp-message')) {
+          ipcRenderer.on('udp-message', (event, data) => callback(data));
+        }
+      },
+      
+      onUdpError: (callback) => {
+        if (isValidChannel('RECEIVE', 'udp-error')) {
+          ipcRenderer.on('udp-error', (event, error) => callback(error));
+        }
+      },
+      
+      onUdpStarted: (callback) => {
+        if (isValidChannel('RECEIVE', 'udp-started')) {
+          ipcRenderer.on('udp-started', (event, data) => callback(data));
+        }
+      },
+      
+      // Operaciones de configuración
+      saveConfig: async (config) => {
+        return await ipcRenderer.invoke('config:save', config);
+      },
+      
+      loadConfig: async () => {
+        return await ipcRenderer.invoke('config:load');
+      },
+      
+      getConfigPath: () => {
+        return ipcRenderer.sendSync('config:getPath');
+      },
+      
+      // Información del sistema
+      platform: process.platform,
+      isDev: process.env.NODE_ENV === 'development',
+      appVersion: process.env.npm_package_version || '1.0.0',
+      // Abrir enlace externo en el navegador predeterminado
+      openExternal: (url) => ipcRenderer.invoke('open-external', url),
+      // Obtener información de la aplicación
+      getAppInfo: () => ipcRenderer.invoke('get-app-info'),
+      
+      // Métodos para LdA
+      onLdaStatus: (callback) => {
+        if (typeof callback === 'function') {
+          ipcRenderer.on('lda-status', (event, ...args) => callback(...args));
+        }
+      },
+      onLdaError: (callback) => {
+        if (typeof callback === 'function') {
+          ipcRenderer.on('lda-error', (event, ...args) => callback(...args));
+        }
+      },
+      getLdaConfig: () => ipcRenderer.invoke('get-lda-config'),
+      updateLdaConfig: (config) => ipcRenderer.invoke('update-lda-config', config)
+    };
+    
+    contextBridge.exposeInMainWorld('electron', api);
+    console.log('[Preload] API de Electron expuesta correctamente');
+  } catch (error) {
+    console.error('[Preload] Error al exponer la API de Electron:', error);
   }
-});
-
-// Manejo de errores no capturados
-process.on('uncaughtException', (error) => {
-  console.error('Error no capturado en preload:', error);
-});
+}

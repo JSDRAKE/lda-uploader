@@ -1,7 +1,43 @@
-node_modules
+# Dependencias
+node_modules/
 
+# Archivos de entorno
 .env
+.env.local
+.env.*.local
 
+# Archivos de construcción
+dist/
+build/
+release/
+app/dist/
+app/build/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Archivos de editor
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Archivos temporales
+*.tmp
+*.tmp.*
+*.bak
+*.swp
+*~
 *.txt
 *.pdf
-*.doc
