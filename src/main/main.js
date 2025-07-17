@@ -2,9 +2,29 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync } from 'fs';
 import dgram from 'dgram';
 import LdaService from './lda-service.js';
+
+// Función para leer el package.json
+function getPackageInfoSync() {
+  try {
+    const packagePath = path.join(process.cwd(), 'package.json');
+    const packageData = readFileSync(packagePath, 'utf8');
+    return JSON.parse(packageData);
+  } catch (error) {
+    console.error('Error al leer el package.json:', error);
+    return {
+      name: 'LdA Uploader',
+      version: '1.0.0',
+      description: 'Aplicación para subir automáticamente QSO a LdA',
+      author: 'JSDRAKE - LU9WT',
+      homepage: 'https://lu9wt.jsdrake.com.ar',
+      email: 'lu9wt@jsdrake.com.ar',
+      license: 'MIT'
+    };
+  }
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -333,7 +353,7 @@ function startUdpServer(port) {
 // Iniciar con el puerto por defecto (Log4OM)
 startUdpServer(SOFTWARE_PORTS.log4om);
 
-function createWindow() {
+async function createWindow() {
   const isDev = process.argv.includes('--dev');
   
   mainWindow = new BrowserWindow({
@@ -363,6 +383,14 @@ function createWindow() {
     },
   });
   
+  // Cuando la aplicación esté lista
+  await app.whenReady();
+
+  // Exponer información de la aplicación al proceso de renderizado
+  ipcMain.handle('get-app-info', () => {
+    return getPackageInfoSync();
+  });
+
   // Mostrar la ventana cuando esté lista
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
@@ -448,6 +476,18 @@ async function saveConfig(config) {
     return false;
   }
 }
+
+// Manejador para abrir enlaces externos
+ipcMain.handle('open-external', async (event, url) => {
+  try {
+    const { shell } = await import('electron');
+    await shell.openExternal(url);
+    return { success: true };
+  } catch (error) {
+    console.error('Error al abrir enlace externo:', error);
+    return { success: false, error: error.message };
+  }
+});
 
 // Manejadores IPC para LdA
 ipcMain.handle('get-lda-config', async () => {
