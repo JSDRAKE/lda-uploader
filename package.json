@@ -16,6 +16,10 @@
   "homepage": "https://lu9wt.jsdrake.com.ar",
   "email": "lu9wt@jsdrake.com.ar",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jsdrake/lda-uploader.git"
+  },
   "devDependencies": {
     "electron": "^37.2.1",
     "prettier": "^3.6.2"
