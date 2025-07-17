@@ -13,6 +13,7 @@ if (isNode) {
     // Canales de envío (renderer -> main)
     SEND: [
       'config:save',
+      'config:load',
       'file:upload',
       'log:debug',
       'log:error',
@@ -21,7 +22,9 @@ if (isNode) {
       'window:maximize',
       'window:close',
       'change-software',
-      'udp:change-port'
+      'udp:change-port',
+      'update-lda-config',
+      'get-lda-config'
     ],
     // Canales de recepción (main -> renderer)
     RECEIVE: [
@@ -31,7 +34,9 @@ if (isNode) {
       'file:upload:error',
       'udp-message',
       'udp-error',
-      'udp-started'
+      'udp-started',
+      'lda-status',
+      'lda-error'
     ]
   };
 
@@ -42,14 +47,35 @@ if (isNode) {
 
   // Exponer API segura al renderer
   try {
-    contextBridge.exposeInMainWorld('electron', {
-      // Métodos para el servidor UDP
+    const api = {
+      // Invocar métodos en el proceso principal
+      invoke: (channel, ...args) => {
+        if (isValidChannel('SEND', channel)) {
+          return ipcRenderer.invoke(channel, ...args);
+        }
+        console.warn(`[SECURITY] Intento de invocar canal no permitido: ${channel}`);
+        return Promise.reject(new Error(`Invalid channel: ${channel}`));
+      },
+      
+      // Escuchar eventos del proceso principal
+      on: (channel, callback) => {
+        if (isValidChannel('RECEIVE', channel)) {
+          const subscription = (event, ...args) => callback(...args);
+          ipcRenderer.on(channel, subscription);
+          return () => ipcRenderer.removeListener(channel, subscription);
+        }
+        console.warn(`[SECURITY] Intento de escuchar canal no permitido: ${channel}`);
+        return () => {};
+      },
+      
+      // Métodos específicos para la aplicación
       changeSoftware: (software) => {
         if (isValidChannel('SEND', 'change-software')) {
           ipcRenderer.send('change-software', software);
         }
       },
       
+      // Métodos para UDP
       onUdpMessage: (callback) => {
         if (isValidChannel('RECEIVE', 'udp-message')) {
           ipcRenderer.on('udp-message', (event, data) => callback(data));
@@ -67,6 +93,7 @@ if (isNode) {
           ipcRenderer.on('udp-started', (event, data) => callback(data));
         }
       },
+      
       // Operaciones de configuración
       saveConfig: async (config) => {
         return await ipcRenderer.invoke('config:save', config);
@@ -80,37 +107,27 @@ if (isNode) {
         return ipcRenderer.sendSync('config:getPath');
       },
       
-      // Enviar mensajes al proceso principal
-      send: (channel, data) => {
-        if (isValidChannel('SEND', channel)) {
-          ipcRenderer.send(channel, data);
-        } else {
-          console.warn(`[SECURITY] Intento de acceso a canal no permitido: ${channel}`);
-        }
-      },
-      
-      // Recibir mensajes del proceso principal
-      on: (channel, listener) => {
-        if (isValidChannel('RECEIVE', channel)) {
-          const subscription = (event, ...args) => listener(...args);
-          ipcRenderer.on(channel, subscription);
-          
-          // Devolver función de limpieza
-          return () => {
-            ipcRenderer.removeListener(channel, subscription);
-          };
-        } else {
-          console.warn(`[SECURITY] Intento de escuchar canal no permitido: ${channel}`);
-          return () => {};
-        }
-      },
-      
       // Información del sistema
       platform: process.platform,
       isDev: process.env.NODE_ENV === 'development',
-      appVersion: process.env.npm_package_version || '1.0.0'
-    });
+      appVersion: process.env.npm_package_version || '1.0.0',
+      
+      // Métodos para LdA
+      onLdaStatus: (callback) => {
+        if (typeof callback === 'function') {
+          ipcRenderer.on('lda-status', (event, ...args) => callback(...args));
+        }
+      },
+      onLdaError: (callback) => {
+        if (typeof callback === 'function') {
+          ipcRenderer.on('lda-error', (event, ...args) => callback(...args));
+        }
+      },
+      getLdaConfig: () => ipcRenderer.invoke('get-lda-config'),
+      updateLdaConfig: (config) => ipcRenderer.invoke('update-lda-config', config)
+    };
     
+    contextBridge.exposeInMainWorld('electron', api);
     console.log('[Preload] API de Electron expuesta correctamente');
   } catch (error) {
     console.error('[Preload] Error al exponer la API de Electron:', error);
