@@ -356,6 +356,12 @@ startUdpServer(SOFTWARE_PORTS.log4om);
 async function createWindow() {
   const isDev = process.argv.includes('--dev');
   
+  // Configuración de menú vacío para producción
+  if (!isDev) {
+    const { Menu } = await import('electron');
+    Menu.setApplicationMenu(null);
+  }
+  
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
