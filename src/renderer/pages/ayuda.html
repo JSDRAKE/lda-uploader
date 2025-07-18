@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ayuda - LdA Uploader</title>
+  </head>
+  <body>
+    <div class="help-content">
+      <h3><i class="fas fa-info-circle"></i> Guía Rápida</h3>
+      <p>
+        Bienvenido a LdA Uploader. Esta aplicación te permite subir automáticamente tus contactos
+        (QSO) a Log de Argentina.
+      </p>
+
+      <h3><i class="fas fa-cog"></i> Configuración</h3>
+
+      <p>Configura de la aplicación.</p>
+      <p>En la sección de Configuración debes de:</p>
+      <ul>
+        <li>Configurar tus credenciales de acceso a LdA, usuario y contraseña.</li>
+        <li>Configurar tu Señal Distintiva principal.</li>
+        <li>
+          Agregar Alias(/M /QRP u otro Alias que tengas en LdA) o la SDE que tengas registrada en
+          LdA.
+        </li>
+      </ul>
+
+      <p>Configuración de los softwares:</p>
+      <ul>
+        <li>Log4OM</li>
+        <ul>
+          <li>Ve a Settings.</li>
+          <li>Luego a Program Configuration.</li>
+          <li>Luego a menu Connections.</li>
+          <li>Rellena los datos de la siguiente manera:</li>
+          <ul>
+            <li>Port: 2233</li>
+            <li>Connection name: LdA Uploader</li>
+            <li>Services Type: ADIF_MESSAGE</li>
+          </ul>
+          <li>Y le das a signo +</li>
+          <li>Y listo</li>
+          <br />
+          <img src="../assets/log4om.jpg" alt="" />
+        </ul>
+        <li>WSJT-X</li>
+        <ul>
+          <li>Ve a Archivo</li>
+          <li>Ajustes</li>
+          <li>Luego a Reportes</li>
+          <li>Busca Servidor UDP Secundario y verifica que la IP sea 127.0.0.1 y el Puerto 2333</li>
+          <li>Tilda la opción: Habilita "broadcast" de contacto Guardado (ADIF)</li>
+          <li>Y listo</li>
+          <img src="../assets/wsjtx.jpg" alt="" />
+        </ul>
+        <li>JTDX</li>
+        <ul>
+          <li>Ve a Fichero</li>
+          <li>Ajustes</li>
+          <li>Luego a Informes</li>
+          <li>Busca Habilitar envío servidor UDP secundario y tilda</li>
+          <li>Verifica que 2do servidor UDP la IP sea 127.0.0.1 y el Puerto UDP sea 2333</li>
+          <li>Y listo</li>
+          <img src="../assets/jtdx.jpg" alt="" />
+        </ul>
+        <li>N1MM</li>
+        PROXIMAMENTE
+      </ul>
+
+      <h3><i class="fas fa-upload"></i> Cómo subir contactos</h3>
+      <ol>
+        <li>
+          Selecciona el software de que utilizaras para enviar la información(Log4OM, WSJT-X/JTDX,
+          N1MM).
+        </li>
+        <li>
+          Al seleccionar el software la aplicación quedara a la escucha de la información en el
+          puerto correspondiente.
+        </li>
+        <li>Realiza la configuración de Log4OM/WSJT-X/JTDX/N1MM según la guía anterior.</li>
+        <li>
+          Cada vez que guardes un contacto en alguno de estos softwares, LdA Uploader recibira la
+          información en el puerto correspondiente y la enviara a LdA.
+        </li>
+        <li>Si sale un error, verifica que la configuración sea correcta.</li>
+      </ol>
+
+      <p>Proximamente se agregara la opción de subir contactos desde un archivo ADIF.</p>
+
+      <h3><i class="fas fa-question-circle"></i> Preguntas Frecuentes</h3>
+      <div class="faq-item">
+        <h4>¿Qué formatos de archivo son compatibles?</h4>
+        <p>
+          La aplicación es compatible con archivos ADIF (.adi, .adif) exportados desde la mayoría de
+          los programas de registro de contactos.
+        </p>
+      </div>
+
+      <div class="faq-item">
+        <h4>¿Cómo configuro el puerto UDP?</h4>
+        <p>
+          La aplicación escucha automáticamente en los puertos correspondientes a cada software.
+          Solo debes de configurar el software que utilizaras para enviar la información(Log4OM,
+          WSJT-X/JTDX, N1MM). Y seleccionas el software en la aplicación.
+        </p>
+      </div>
+
+      <div class="faq-item">
+        <h4>¿Se piensa en agregar mas funcionalidades?</h4>
+        <p>
+          Si, estoy abierto a sugerencias y sugerencias de nuevas funcionalidades. Si tienes alguna
+          sugerencia, no dudes en contactarme.
+        </p>
+      </div>
+
+      <div class="faq-item">
+        <h4>¿Se piensa en agregar por ejemplo subir a QRZ.com?</h4>
+        <p>
+          No, por ahora no. Ya que existen otros softwares que lo hacen. Ademas, QRZ.com para subir
+          automaticamente los QSO requiere pagar la suscripción de XML al menos.
+        </p>
+      </div>
+
+      <div class="faq-item">
+        <h4>¿Se puede usar con otros software que no estan en la lista?</h4>
+        <p>
+          Si, se puede usar con otros software que no estan en la lista. El software debe tener la
+          opcion de envio de información via UDP. Solo debes de configurar el software que
+          utilizaras para enviar la información como alguno de los que estan en la lista y listo.
+          Por ejemplo DXLog.net transmite los datos via UDP en el puerto 12060 como N1MMM,
+          seleccionas N1MM en la aplicacion y escuchara a DXLog.net para subir los QSO.
+        </p>
+      </div>
+
+      <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i>
+        <strong>¿Necesitas más ayuda?</strong><br />
+        <div class="app-links">
+          <a href="#" id="homepageLink" target="_blank" rel="noopener noreferrer" class="app-link">
+            <i class="fas fa-globe"></i> <span id="homepageText">Sitio web</span>
+          </a>
+          <a href="#" id="emailLink" class="app-link">
+            <i class="fas fa-envelope"></i> <span id="emailText">Contacto</span>
+          </a>
+          <a href="#" id="repoLink" target="_blank" rel="noopener noreferrer" class="app-link">
+            <i class="fab fa-github"></i> <span>Repositorio</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
