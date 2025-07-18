@@ -361,11 +361,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.body.offsetHeight;
   };
 
+  // Cargar contenido de ayuda
+  async function loadHelpContent() {
+    try {
+      const response = await fetch('pages/ayuda.html');
+      if (!response.ok) throw new Error('No se pudo cargar la ayuda');
+      const html = await response.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const helpContent = doc.querySelector('body').innerHTML;
+      const helpContainer = document.querySelector('#ayuda .help-container');
+      if (helpContainer) {
+        helpContainer.innerHTML = helpContent;
+      }
+    } catch (error) {
+      console.error('Error al cargar la ayuda:', error);
+      const helpContainer = document.querySelector('#ayuda .help-container');
+      if (helpContainer) {
+        helpContainer.innerHTML = `
+          <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            No se pudo cargar la ayuda. Por favor, intente nuevamente más tarde.
+          </div>`;
+      }
+    }
+  }
+
   // Cambiar sección activa
-  function setActiveSection(sectionId) {
+  async function setActiveSection(sectionId) {
     // Remover clase active de todos los items del menú y secciones
     menuItems.forEach(item => item.parentElement.classList.remove('active'));
     sections.forEach(section => section.classList.remove('active'));
+
+    // Cargar contenido de ayuda si es necesario
+    if (sectionId === 'ayuda') {
+      await loadHelpContent();
+    }
 
     // Agregar clase active al item del menú y sección correspondiente
     const activeMenuItem = document.querySelector(`.menu-item a[data-section="${sectionId}"]`);
